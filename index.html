@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>离线查询</title>
+<style>
+  :root {
+    --line: #d7dce2;
+    --muted: #667085;
+    --bad: #b42318;
+    --pwd-bg: #EBEEF2;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    color: #1f2937;
+    font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 8px 10px 32px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+  button, input, select {
+    font: inherit;
+    color: inherit;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 8px;
+  }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { background: #f3f5f8; }
+  button:disabled { color: #98a2b3; cursor: default; }
+  input[type=number] { width: 5.5em; }
+  #token { flex: 1 1 220px; min-width: 160px; }
+  #search-text { flex: 1 1 180px; min-width: 140px; }
+  #status { margin: 4px 0 10px; min-height: 1.5em; color: var(--muted); }
+  #status.bad { color: var(--bad); }
+  #crumb { word-break: break-all; }
+  .link { cursor: pointer; }
+  .link:hover { background: #f3f5f8; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td {
+    padding: 5px 10px;
+    text-align: left;
+    border-bottom: 1px solid #edf0f3;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  th { background: #f7f9fb; font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .pwd {
+    background: var(--pwd-bg);
+    border-radius: 6px;
+    padding: 1px 6px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .pwd.used { text-decoration: line-through; }
+  dialog {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    max-width: min(860px, 92vw);
+  }
+  dialog::backdrop { background: #0f172a55; }
+  .dlg-body { max-height: 55vh; overflow: auto; }
+  #desc-text {
+    max-height: 55vh;
+    margin: 0;
+    overflow: auto;
+    font: inherit;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  @media (max-width: 640px) {
+    main { padding: 6px 6px 24px; }
+    th, td { padding: 4px 6px; }
+    #token { flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar">
+    <button id="pwdgen-open" type="button">密码生成</button>
+  </div>
+  <div class="bar">
+    <input id="token" type="password" placeholder="Token" autocomplete="off" spellcheck="false">
+    <button id="login" type="button">登录</button>
+    <span id="username"></span>
+  </div>
+  <p id="status"></p>
+
+  <section id="app" hidden>
+    <div class="bar" id="search-bar">
+      <select id="search-target">
+        <option value="all">全部</option>
+        <option value="path">精准路径</option>
+        <option value="name">名称</option>
+        <option value="loc">位置</option>
+        <option value="pwd">密码</option>
+        <option value="desc">描述</option>
+        <option value="author">作者</option>
+      </select>
+      <select id="search-scope">
+        <option value="all">全部</option>
+        <option value="dir">当前目录</option>
+        <option value="subtree">当前及子目录</option>
+      </select>
+      <select id="search-type">
+        <option value="all">全部</option>
+        <option value="file">文件</option>
+        <option value="dir">目录</option>
+      </select>
+      <input id="search-text" type="search" placeholder="搜索">
+      <button id="search-run" type="button">搜索</button>
+    </div>
+
+    <div class="bar" id="nav-bar">
+      <button id="go-up" type="button">上一级</button>
+      <button id="go-root" type="button">根目录</button>
+      <span id="crumb"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>名称</th><th>位置</th><th>密码</th><th>描述</th><th>作者</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="bar" id="pager-bar">
+      <button id="page-prev" type="button">上一页</button>
+      <input id="page-now" type="number" min="1" value="1" aria-label="页码">
+      <span id="page-total"></span>
+      <button id="page-next" type="button">下一页</button>
+      <button id="page-jump" type="button">跳转</button>
+      <input id="page-size" type="number" value="100" aria-label="每页条数">
+    </div>
+  </section>
+</main>
+
+<dialog id="pwdgen">
+  <div class="bar">
+    <strong>密码生成</strong>
+    <button id="pwdgen-close" type="button">关闭</button>
+  </div>
+  <div class="bar">
+    <label>密码字节数 <input id="pwdgen-bytes" type="number" min="1" max="1024" value="32"></label>
+    <label>生成数量 <input id="pwdgen-count" type="number" min="1" max="1000" value="10"></label>
+    <button id="pwdgen-run" type="button">生成</button>
+  </div>
+  <p id="pwdgen-msg"></p>
+  <div class="dlg-body">
+    <table>
+      <thead><tr><th>序号</th><th>密码</th></tr></thead>
+      <tbody id="pwdgen-rows"></tbody>
+    </table>
+  </div>
+</dialog>
+
+<dialog id="desc-dlg">
+  <div class="bar">
+    <strong>描述</strong>
+    <button id="desc-copy" type="button">复制</button>
+    <button id="desc-close" type="button">关闭</button>
+  </div>
+  <pre id="desc-text"></pre>
+</dialog>
+
+<script>
+'use strict';
+
+const BATCH = 64;
+const PBKDF2_ITERATIONS = 600000;
+const DEFAULT_PAGE_SIZE = 100;
+
+const $ = id => document.getElementById(id);
+
+const state = {
+  version: '',
+  shared: [],
+  user: null,
+  dirIndex: new Map(),
+  allRows: [],
+  cwd: '/',
+  searching: false,
+  results: [],
+  page: 1,
+  size: DEFAULT_PAGE_SIZE,
+  pageRows: [],
+  desc: '',
+};
+
+let progressTick = 0;
+
+/* 初始化 */
+
+function setStatus(text, bad) {
+  const status = $('status');
+  status.textContent = text;
+  status.className = bad ? 'bad' : '';
+}
+
+function withVersion(path) {
+  return path + '?v=' + encodeURIComponent(state.version);
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('加载 ' + src + ' 失败'));
+    document.head.append(script);
+  });
+}
+
+async function fetchBytes(path) {
+  const response = await fetch(withVersion(path));
+  if (!response.ok) throw new Error(path + ' 返回 ' + response.status);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+async function init() {
+  if (!globalThis.crypto || !crypto.subtle) {
+    throw new Error('当前环境不提供 WebCrypto，请用 HTTPS 或 localhost 打开页面');
+  }
+  const version = await fetch('version', { cache: 'no-store' });
+  if (!version.ok) throw new Error('version 返回 ' + version.status);
+  state.version = (await version.text()).trim();
+
+  await loadScript(withVersion('lib/msgpack.min.js'));
+  state.shared = MessagePack.decode(await fetchBytes('data/data'));
+}
+
+async function boot() {
+  try {
+    await init();
+  } catch (error) {
+    $('login').disabled = true;
+    setStatus('初始化失败：' + error.message, true);
+    return;
+  }
+  const saved = localStorage.getItem('token');
+  if (saved) {
+    $('token').value = saved;
+    await runLogin(saved);
+  }
+}
+
+/* 登录与解密 */
+
+function base64url(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+}
+
+async function decryptShared(id, keyBytes) {
+  const [nonce, blob] = state.shared[id];
+  const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt']);
+  return MessagePack.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, blob));
+}
+
+function report(text, done, total) {
+  const now = Date.now();
+  if (done < total && now - progressTick < 2000) return;
+  progressTick = now;
+  setStatus(text);
+}
+
+async function decryptAll(items, worker, label) {
+  const results = new Array(items.length);
+  let done = 0;
+  for (let start = 0; start < items.length; start += BATCH) {
+    const slice = items.slice(start, start + BATCH);
+    await Promise.all(slice.map(async (item, offset) => {
+      results[start + offset] = await worker(item);
+      done += 1;
+      report(label + ' ' + done + '/' + items.length, done, items.length);
+    }));
+  }
+  return results;
+}
+
+async function decryptEverything(user) {
+  progressTick = 0;
+  const groups = await decryptAll(user.groups, entry => decryptShared(entry[0], entry[1]), '解密分组');
+  const fileKeys = new Map();
+  for (const members of groups) {
+    for (const [id, key] of members) {
+      if (!fileKeys.has(id)) fileKeys.set(id, key);
+    }
+  }
+  progressTick = 0;
+  const entries = [...fileKeys];
+  return decryptAll(entries, entry => decryptShared(entry[0], entry[1]), '解密文件');
+}
+
+async function login(token) {
+  const tokenBytes = new TextEncoder().encode(token);
+  const hash = base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', tokenBytes)));
+  const response = await fetch(withVersion('data/user/' + hash));
+  if (!response.ok) throw new Error('Token 无效');
+  const file = new Uint8Array(await response.arrayBuffer());
+  const [salt, nonce, blob] = MessagePack.decode(file);
+
+  setStatus('正在派生密钥...');
+  const material = await crypto.subtle.importKey('raw', tokenBytes, 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    material,
+    256,
+  );
+  const userKey = await crypto.subtle.importKey('raw', bits, 'AES-GCM', false, ['decrypt']);
+  const user = MessagePack.decode(
+    await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, userKey, blob),
+  );
+  const specs = await decryptEverything(user);
+  return { user: user, specs: specs };
+}
+
+async function runLogin(token) {
+  setStatus('正在登录...');
+  try {
+    const { user, specs } = await login(token);
+    const tree = buildTree(specs);
+    state.user = user;
+    state.dirIndex = indexDirs(tree, new Map());
+    state.allRows = collectRows(tree, []);
+    state.cwd = '/';
+    state.searching = false;
+    state.results = [];
+    state.page = 1;
+    localStorage.setItem('token', token);
+    $('token').value = token;
+    $('login').textContent = '注销';
+    $('app').hidden = false;
+    $('search-text').value = '';
+    render();
+    const hasFile = state.allRows.some(row => row.kind === 'file');
+    setStatus(hasFile ? '登录成功' : '暂无可访问的资源');
+  } catch (error) {
+    localStorage.removeItem('token');
+    setStatus('登录失败：' + error.message, true);
+  }
+}
+
+function logout() {
+  localStorage.removeItem('token');
+  state.user = null;
+  state.dirIndex = new Map();
+  state.allRows = [];
+  state.results = [];
+  state.cwd = '/';
+  state.searching = false;
+  state.page = 1;
+  $('token').value = '';
+  $('username').textContent = '';
+  $('login').textContent = '登录';
+  $('app').hidden = true;
+  setStatus('已注销');
+}
+
+/* 目录树 */
+
+function buildTree(specs) {
+  const root = { name: '/', path: '/', dirs: new Map(), files: new Map() };
+  for (const spec of specs) {
+    const parts = spec.path.split('/').filter(Boolean);
+    let node = root;
+    for (const name of parts.slice(0, -1)) {
+      if (!node.dirs.has(name)) {
+        node.dirs.set(name, {
+          name: name,
+          path: node.path + name + '/',
+          dirs: new Map(),
+          files: new Map(),
+        });
+      }
+      node = node.dirs.get(name);
+    }
+    const fileName = parts[parts.length - 1];
+    node.files.set(fileName, { ...spec, name: fileName });
+  }
+  return root;
+}
+
+function indexDirs(node, index) {
+  index.set(node.path, node);
+  for (const child of node.dirs.values()) indexDirs(child, index);
+  return index;
+}
+
+function collectRows(node, rows) {
+  for (const child of node.dirs.values()) {
+    rows.push({ kind: 'dir', name: child.name, path: child.path });
+    collectRows(child, rows);
+  }
+  for (const spec of node.files.values()) rows.push({ kind: 'file', ...spec });
+  return rows;
+}
+
+function compareRows(a, b) {
+  if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1;
+  if (a.name.length !== b.name.length) return a.name.length - b.name.length;
+  return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+}
+
+function rowsOf(node) {
+  return [
+    ...[...node.dirs.values()].map(child => ({ kind: 'dir', name: child.name, path: child.path })),
+    ...[...node.files.values()].map(spec => ({ kind: 'file', ...spec })),
+  ].sort(compareRows);
+}
+
+function parentDir(path) {
+  const trimmed = path.replace(/\/$/, '');
+  const cut = trimmed.lastIndexOf('/');
+  return cut <= 0 ? '/' : trimmed.slice(0, cut + 1);
+}
+
+function parentPath(row) {
+  return row.kind === 'dir' ? parentDir(row.path) : row.path.slice(0, row.path.lastIndexOf('/') + 1);
+}
+
+/* 搜索 */
+
+function shorten(desc) {
+  const nonEmptyLines = (desc == null ? '' : desc).split('\n').map(line => line.trim()).filter(line => line);
+  return (nonEmptyLines[0] || '') + (nonEmptyLines.length > 1 ? '...' : '');
+}
+
+function matchesText(row, query, target) {
+  const needle = query.toLowerCase();
+  const fields = target === 'all' ? ['name', 'loc', 'pwd', 'desc', 'author'] : [target];
+  return fields.some(field => {
+    const value = row[field];
+    return typeof value === 'string' && value.toLowerCase().includes(needle);
+  });
+}
+
+function inScope(row, scope) {
+  if (scope === 'all') return true;
+  if (scope === 'dir') return parentPath(row) === state.cwd;
+  return row.path.startsWith(state.cwd);
+}
+
+function searchRows(query, target, scope, type) {
+  if (target === 'path' && query.replaceAll('/', '') === '') {
+    return type === 'file' ? [] : [{ kind: 'dir', name: '/', path: '/' }];
+  }
+  const needle = query.replace(/^\/+|\/+$/g, '');
+  return state.allRows.filter(row => {
+    if (type !== 'all' && row.kind !== type) return false;
+    if (!inScope(row, scope)) return false;
+    if (target === 'path') return row.path.replace(/^\/+|\/+$/g, '') === needle;
+    return matchesText(row, query, target);
+  }).sort(compareRows);
+}
+
+function runSearch() {
+  const query = $('search-text').value;
+  if (query.trim() === '') {
+    exitSearch();
+    return;
+  }
+  state.results = searchRows(query, $('search-target').value, $('search-scope').value, $('search-type').value);
+  state.searching = true;
+  state.page = 1;
+  render();
+  setStatus('找到 ' + state.results.length + ' 项');
+}
+
+function exitSearch() {
+  state.searching = false;
+  state.results = [];
+  state.page = 1;
+  render();
+  setStatus('');
+}
+
+function enterDir(path) {
+  state.cwd = path;
+  state.searching = false;
+  state.results = [];
+  state.page = 1;
+  render();
+  setStatus('');
+}
+
+/* 渲染 */
+
+function render() {
+  const rows = state.searching ? state.results : rowsOf(state.dirIndex.get(state.cwd));
+  const pages = state.size > 0 ? Math.max(1, Math.ceil(rows.length / state.size)) : 1;
+  state.page = Math.min(Math.max(1, state.page), pages);
+  const visible = state.size > 0
+    ? rows.slice((state.page - 1) * state.size, state.page * state.size)
+    : rows;
+
+  renderTable(visible);
+  $('username').textContent = state.user ? state.user.name : '';
+  $('page-now').value = String(state.page);
+  $('page-total').textContent = '共 ' + rows.length + ' 项，' + pages + ' 页';
+  $('page-prev').disabled = state.page <= 1;
+  $('page-next').disabled = state.page >= pages;
+  $('nav-bar').hidden = state.searching;
+  $('go-up').disabled = state.cwd === '/';
+  renderCrumb();
+}
+
+function renderTable(rows) {
+  state.pageRows = rows;
+  $('rows').replaceChildren(...rows.map(tableRow));
+}
+
+function textCell(value) {
+  const cell = document.createElement('td');
+  cell.textContent = value == null ? '' : value;
+  if (value) {
+    cell.className = 'link';
+    cell.dataset.copy = value;
+  }
+  return cell;
+}
+
+function displayName(row) {
+  if (row.kind !== 'dir') return row.name;
+  return row.path === '/' ? '/' : row.name + '/';
+}
+
+function tableRow(row, index) {
+  const tr = document.createElement('tr');
+  tr.dataset.index = String(index);
+
+  const name = document.createElement('td');
+  name.className = 'link';
+  name.textContent = displayName(row);
+  if (row.kind === 'dir') name.dataset.enter = row.path;
+  else name.dataset.copy = row.path;
+  tr.append(name);
+
+  tr.append(textCell(row.loc));
+
+  const pwd = document.createElement('td');
+  if (row.pwd) {
+    const span = document.createElement('span');
+    span.className = 'pwd';
+    span.textContent = row.pwd;
+    pwd.className = 'link';
+    pwd.dataset.copy = row.pwd;
+    pwd.append(span);
+  }
+  tr.append(pwd);
+
+  const desc = document.createElement('td');
+  desc.textContent = shorten(row.desc);
+  if (row.desc) {
+    desc.className = 'link';
+    desc.dataset.desc = '1';
+  }
+  tr.append(desc);
+
+  tr.append(textCell(row.author));
+  return tr;
+}
+
+function renderCrumb() {
+  const levels = [{ name: '/', path: '/' }];
+  let path = '/';
+  for (const part of state.cwd.split('/').filter(Boolean)) {
+    path += part + '/';
+    levels.push({ name: part, path: path });
+  }
+  const pieces = [];
+  levels.forEach((level, index) => {
+    const span = document.createElement('span');
+    span.className = 'link';
+    span.textContent = level.name;
+    if (index === levels.length - 1) span.dataset.copy = level.path;
+    else span.dataset.enter = level.path;
+    if (index > 0) {
+      pieces.push(document.createTextNode(' '));
+      pieces.push(span);
+      pieces.push(document.createTextNode(' /'));
+    } else {
+      pieces.push(span);
+    }
+  });
+  $('crumb').replaceChildren(...pieces);
+}
+
+/* 复制 */
+
+function selectNode(node) {
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const selection = getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+async function copy(value, node) {
+  selectNode(node);
+  try {
+    await navigator.clipboard.writeText(value);
+    setStatus('已复制');
+    return true;
+  } catch {
+    setStatus('复制未成功，请手动选择后复制', true);
+    return false;
+  }
+}
+
+/* 密码生成 */
+
+function randomPassword(bytes) {
+  const raw = crypto.getRandomValues(new Uint8Array(bytes));
+  return base64url(raw);
+}
+
+function readCount(input, max) {
+  const value = Number(input.value);
+  return Number.isInteger(value) && value >= 1 && value <= max ? value : null;
+}
+
+function generatePasswords() {
+  const bytes = readCount($('pwdgen-bytes'), 1024);
+  const count = readCount($('pwdgen-count'), 1000);
+  if (bytes === null || count === null) {
+    $('pwdgen-msg').textContent = '密码字节数填 1-1024，生成数量填 1-1000';
+    return;
+  }
+  $('pwdgen-msg').textContent = '';
+  const rows = [];
+  for (let index = 1; index <= count; index += 1) {
+    const tr = document.createElement('tr');
+    const order = document.createElement('td');
+    order.textContent = String(index);
+    const cell = document.createElement('td');
+    const span = document.createElement('span');
+    span.className = 'pwd';
+    span.textContent = randomPassword(bytes);
+    cell.append(span);
+    tr.append(order, cell);
+    rows.push(tr);
+  }
+  $('pwdgen-rows').replaceChildren(...rows);
+}
+
+/* 事件 */
+
+$('login').addEventListener('click', () => {
+  if (state.user) {
+    logout();
+    return;
+  }
+  const token = $('token').value.trim();
+  if (!token) {
+    setStatus('请输入 Token', true);
+    return;
+  }
+  runLogin(token);
+});
+
+$('token').addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !state.user) $('login').click();
+});
+
+$('rows').addEventListener('click', event => {
+  const cell = event.target.closest('td');
+  if (!cell) return;
+  const row = state.pageRows[Number(cell.closest('tr').dataset.index)];
+  if (cell.dataset.enter !== undefined) enterDir(cell.dataset.enter);
+  else if (cell.dataset.desc !== undefined) openDesc(row);
+  else if (cell.dataset.copy !== undefined) copy(cell.dataset.copy, cell);
+});
+
+$('crumb').addEventListener('click', event => {
+  const span = event.target.closest('span');
+  if (!span) return;
+  if (span.dataset.enter !== undefined) enterDir(span.dataset.enter);
+  else if (span.dataset.copy !== undefined) copy(span.dataset.copy, span);
+});
+
+$('go-up').addEventListener('click', () => enterDir(parentDir(state.cwd)));
+$('go-root').addEventListener('click', () => enterDir('/'));
+
+$('search-run').addEventListener('click', runSearch);
+
+$('search-text').addEventListener('keydown', event => {
+  if (event.key === 'Enter') runSearch();
+});
+
+$('page-prev').addEventListener('click', () => {
+  state.page -= 1;
+  render();
+});
+
+$('page-next').addEventListener('click', () => {
+  state.page += 1;
+  render();
+});
+
+$('page-jump').addEventListener('click', () => {
+  state.page = Number($('page-now').value) || 1;
+  render();
+});
+
+$('page-size').addEventListener('change', () => {
+  const size = Number($('page-size').value);
+  state.size = Number.isFinite(size) ? size : 0;
+  state.page = 1;
+  render();
+});
+
+$('desc-close').addEventListener('click', () => $('desc-dlg').close());
+$('desc-copy').addEventListener('click', () => copy(state.desc, $('desc-text')));
+
+function openDesc(row) {
+  state.desc = row.desc == null ? '' : row.desc;
+  $('desc-text').textContent = state.desc;
+  $('desc-dlg').showModal();
+}
+
+$('pwdgen-open').addEventListener('click', () => $('pwdgen').showModal());
+$('pwdgen-close').addEventListener('click', () => $('pwdgen').close());
+$('pwdgen-run').addEventListener('click', generatePasswords);
+
+$('pwdgen-rows').addEventListener('click', async event => {
+  const span = event.target.closest('span');
+  if (!span) return;
+  if (await copy(span.textContent, span)) span.classList.add('used');
+});
+
+boot();
+</script>
+</body>
+</html>
