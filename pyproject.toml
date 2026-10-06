@@ -41,6 +41,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # cli.py 是命令行程序，向标准输出打印是它的职责；它不含硬编码凭据，下载地址取自 DEPENDENCIES 常量。
 'cli.py' = ['T20', 'S105', 'S310']
+# gen_bulk_data.py 生成完打印一行条数，让操作者确认写入成功。
+'gen_bulk_data.py' = ['T20']
 'tests/*' = ['ANN201', 'ANN401', 'B018', 'INP001', 'PLW0108', 'PT018', 'S101', 'SIM105', 'T20',
              # 夹具里的 Token 是占位值，这正是它成为夹具的原因。
              'S105', 'S106']

@@ -6,6 +6,7 @@
 
 - `index.html`：前端单页，样式与脚本都内联在其中
 - `cli.py`：`data` 子命令准备前端数据，`web` 子命令起本地 HTTP 服务器
+- `gen_bulk_data.py`：往 `data.toml` 追加一段压测条目，供页面上试用大数据量
 - `pyproject.toml`：依赖、ruff、pyright、pytest 的配置
 - `tests/`：数据转换、web 路由与页面交互的检查
 - `data.toml`、`token.toml`：管理员持有的明文源数据与 Token 清单
@@ -22,6 +23,18 @@ uv run cli.py web            # 默认 http://127.0.0.1:8000/
 ```
 
 `data -c` 首次运行会生成 Token 并写进 `token.toml`，用其中的 Token 在页面上登录。Token 与密码生成都依赖 WebCrypto，页面需要通过 `localhost` 或 HTTPS 打开。
+
+## 大数据量试用
+
+`gen_bulk_data.py` 在 `data.toml` 末尾追加一段压测条目，上一次生成的整段会被替换掉。条目总数、虚拟根目录、所属分组、目录形状都由命令行参数控制，完整参数见 `uv run gen_bulk_data.py --help`：
+
+```sh
+uv run gen_bulk_data.py --count 10000 --dirs 50 --depth 1   # 10000 条，分到 50 个目录
+uv run gen_bulk_data.py --count 5000 --dirs 10 --depth 2    # 两级目录共 100 个，每个 50 条
+uv run cli.py data -c                                       # 生成完重新转换一次数据
+```
+
+不带参数时是 3200 条直接放在 `/压测/` 下。
 
 ## 部署
 
