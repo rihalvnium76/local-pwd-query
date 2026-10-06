@@ -1,0 +1,71 @@
+[project]
+name = 'localpwdquery'
+version = '0.1.0'
+description = '离线加密查询系统的数据准备工具、本地 HTTP 服务器与前端页面'
+readme = 'README.md'
+requires-python = '>=3.11'
+dependencies = [
+    'msgpack>=1.2.2',
+    'pycryptodome>=3.23.0',
+]
+
+[dependency-groups]
+dev = [
+    'pyright>=1.1.414',
+    'pytest>=9.1.1',
+    'ruff>=0.16.8',
+]
+
+[tool.uv]
+exclude-newer = '15 days'
+
+[tool.pytest.ini_options]
+pythonpath = ['.']
+testpaths = ['tests']
+addopts = '-q'
+
+[tool.ruff]
+line-length = 100
+target-version = 'py311'
+
+[tool.ruff.lint]
+select = ['ALL', 'ANN401']
+ignore = [
+    'A', 'ANN', 'ARG', 'COM812', 'CPY', 'D', 'EM', 'ERA', 'FAST', 'FBT', 'PLR', 'PTH', 'TD',
+    'BLE001', 'C901', 'N818', 'PLC0415', 'PLW1508', 'PLW2901', 'RET503', 'S101', 'SLF001',
+    'TC001', 'TC002', 'TC003', 'TC006', 'TRY003', 'TRY004',
+    # 面向用户的文案是中文，全角标点在这里是正确写法。
+    'RUF001', 'RUF002', 'RUF003',
+]
+
+[tool.ruff.lint.per-file-ignores]
+# cli.py 是命令行程序，向标准输出打印是它的职责；它不含硬编码凭据，下载地址取自 DEPENDENCIES 常量。
+'cli.py' = ['T20', 'S105', 'S310']
+'tests/*' = ['ANN201', 'ANN401', 'B018', 'INP001', 'PLW0108', 'PT018', 'S101', 'SIM105', 'T20',
+             # 夹具里的 Token 是占位值，这正是它成为夹具的原因。
+             'S105', 'S106']
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+'__future__.annotations'.msg = 'PEP 649 惰性注解已是 3.14 的默认行为'
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = 'single'
+inline-quotes = 'single'
+multiline-quotes = 'single'
+
+[tool.ruff.lint.isort]
+lines-between-types = 1
+
+[tool.ruff.format]
+quote-style = 'preserve'
+
+[tool.pyright]
+include = ['.']
+typeCheckingMode = 'strict'
+pythonVersion = '3.11'
+# msgpack 不带 py.typed，pycryptodome 的桩里有一处未参数化的 Dict，
+# 未定型类型的报告只可能来自这两个依赖，全树关闭。
+reportMissingTypeStubs = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
