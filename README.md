@@ -7,7 +7,7 @@
 - `index.html`：前端单页，样式与脚本都内联在其中
 - `cli.py`：`data` 子命令准备前端数据，`web` 子命令起本地 HTTP 服务器
 - `pyproject.toml`：依赖、ruff、pyright、pytest 的配置
-- `tests/`：数据转换与 web 路由的检查
+- `tests/`：数据转换、web 路由与页面交互的检查
 - `data.toml`、`token.toml`：管理员持有的明文源数据与 Token 清单
 - `lib/`、`data/`、`version`：`cli.py` 生成的前端数据
 
@@ -37,4 +37,7 @@ uv run cli.py data -u -c 站点目录
 uv run pytest
 uv run ruff check
 uv run pyright
+node tests/page_check.js
 ```
+
+`tests/page_check.js` 用桩 DOM 执行 `index.html` 的内联脚本，覆盖键盘提交与分页联动这类 pytest 看不到的交互，需要本机有 Node。

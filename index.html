@@ -653,7 +653,20 @@ function generatePasswords() {
   $('pwdgen-rows').replaceChildren(...rows);
 }
 
+/* 分页 */
+
+function jumpToPage() {
+  state.page = Number($('page-now').value) || 1;
+  render();
+}
+
 /* 事件 */
+
+function submitOnEnter(id, action) {
+  $(id).addEventListener('keydown', event => {
+    if (event.key === 'Enter') action();
+  });
+}
 
 $('login').addEventListener('click', () => {
   if (state.user) {
@@ -668,8 +681,8 @@ $('login').addEventListener('click', () => {
   runLogin(token);
 });
 
-$('token').addEventListener('keydown', event => {
-  if (event.key === 'Enter' && !state.user) $('login').click();
+submitOnEnter('token', () => {
+  if (!state.user) $('login').click();
 });
 
 $('rows').addEventListener('click', event => {
@@ -693,9 +706,7 @@ $('go-root').addEventListener('click', () => enterDir('/'));
 
 $('search-run').addEventListener('click', runSearch);
 
-$('search-text').addEventListener('keydown', event => {
-  if (event.key === 'Enter') runSearch();
-});
+submitOnEnter('search-text', runSearch);
 
 $('page-prev').addEventListener('click', () => {
   state.page -= 1;
@@ -707,10 +718,9 @@ $('page-next').addEventListener('click', () => {
   render();
 });
 
-$('page-jump').addEventListener('click', () => {
-  state.page = Number($('page-now').value) || 1;
-  render();
-});
+$('page-jump').addEventListener('click', jumpToPage);
+
+submitOnEnter('page-now', jumpToPage);
 
 $('page-size').addEventListener('change', () => {
   const size = Number($('page-size').value);
@@ -731,6 +741,8 @@ function openDesc(row) {
 $('pwdgen-open').addEventListener('click', () => $('pwdgen').showModal());
 $('pwdgen-close').addEventListener('click', () => $('pwdgen').close());
 $('pwdgen-run').addEventListener('click', generatePasswords);
+submitOnEnter('pwdgen-bytes', generatePasswords);
+submitOnEnter('pwdgen-count', generatePasswords);
 
 $('pwdgen-rows').addEventListener('click', async event => {
   const span = event.target.closest('span');
