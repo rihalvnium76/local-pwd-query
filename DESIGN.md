@@ -39,14 +39,15 @@
 ## 前端：离线查询页面（index.html）
 ### 文件与目录结构
 - `index.html`（主页面）
+- `version`（版本号文件，由后端工具生成）
 - `lib/`（第三方依赖）
     - `msgpack.min.js`（MessagePack，**全局导入对象名为 `MessagePack`**）
 - `data/`（数据文件，由后端工具生成）
 
 ### 页面生命周期
 #### 初始化
-- 加载 `msgpack.min.js`
-- 读取 `data/data`，计算 SHA‑256 并转为 Base64，存入 `dataHash`；同时反序列化
+- 读取 `version` 得到版本号
+- 加载 `msgpack.min.js` 与 `data/data`（后者需反序列化）
 - 以上步骤失败则禁止登录
 - 检查 `localStorage` 中的 Token，自动尝试登录
 
@@ -62,8 +63,8 @@
 - 分批并行解密分组和文件（每 2 秒更新进度）
 
 #### 加载与缓存
-- 使用 `fetch()` 自动加载固定路径的本地文件（第三方依赖和数据文件）
-- 数据文件禁止缓存
+- 使用 `fetch()` 自动加载固定路径的本地文件，路径相对于页面本身
+- 以禁止缓存的方式请求 `version` 取得版本号，加载 `lib/` 与 `data/` 下的资源时都带上该版本号（作为查询参数），版本号变化即 URL 变化，从而取到新内容
 
 ### UI 设计与交互
 #### 布局
@@ -88,7 +89,6 @@
     - 排序：目录在前，按名称长度升序、再按名称升序
     - 表格支持水平滚动
     - 支持分页，包括搜索结果；分页组件：上一页按钮、页码输入框、总页数提示、下一页按钮、跳转按钮、分页大小输入框（默认 100，非正数显示全部）
-- **数据校验码区**：底部显示 `dataHash`（灰色）
 
 #### 部分组件样式与交互
 - 密码（文件表格和密码生成表格的）带背景色 `#EBEEF2`、背景圆角半径 6px，支持点击复制、手选复制，始终完整显示
@@ -114,7 +114,7 @@ cli.py data [-u] [-c [--convert-input <ORIG_FILE>]] [WEB_DATA_DIR]
 cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 ```
 
-- `WEB_DATA_DIR`：含有或存放 `lib/`、`data/` 的前端数据目录，该目录可以不包含前端页面本身，默认 `./`
+- `WEB_DATA_DIR`：含有或存放 `version`、`lib/`、`data/` 的前端数据目录，该目录可以不包含前端页面本身，默认 `./`
 
 ### `data` 子命令参数
 | 参数 | 说明 |
@@ -124,6 +124,7 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 | `[WEB_DATA_DIR]` | 前端数据目录，默认 `./`（见公共定义） |
 
 - 若目录不存在则递归创建
+- 每次执行结束时写入 `<WEB_DATA_DIR>/version`（版本号文件，内容为新的 `secrets.token_urlsafe()`）
 
 ### `web` 子命令参数
 | 参数 | 说明 |
@@ -169,6 +170,7 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 - `data/user/{tokenHash}`（每个用户一个文件）
 - `data/data`（共享数据数组）
 - `token.toml`（更新后的 Token 清单）
+- `<WEB_DATA_DIR>/version`（版本号文件）
 
 #### 实现注意事项
 - `Crypto.Protocol.KDF.PBKDF2` 的 `hmac_hash_module` 参数要使用 `Crypto.Hash` 下的实现（如 `Crypto.Hash.SHA256`），不能省略或使用 hashlib 中的构造器
