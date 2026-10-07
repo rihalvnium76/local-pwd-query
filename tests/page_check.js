@@ -100,11 +100,11 @@ read(
 );
 
 check('初始页码', read('state.page'), 1);
-check('总页数提示', element('page-total').textContent, '共 250 项，3 页');
+check('总页数显示', element('page-total').textContent, '/3');
 
 element('page-now').value = '9';
-element('page-jump').click();
-check('跳转按钮把越界页码收回末页', read('state.page'), 3);
+element('page-now').fire('keydown', { key: 'Enter' });
+check('越界页码由回车收回末页', read('state.page'), 3);
 
 element('page-now').value = '2';
 element('page-now').fire('keydown', { key: 'Enter' });

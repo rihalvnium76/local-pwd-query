@@ -139,7 +139,6 @@
       <input id="page-now" type="number" min="1" value="1" aria-label="页码">
       <span id="page-total"></span>
       <button id="page-next" type="button">下一页</button>
-      <button id="page-jump" type="button">跳转</button>
       <input id="page-size" type="number" value="100" aria-label="每页条数">
     </div>
   </section>
@@ -508,7 +507,7 @@ function render() {
   renderTable(visible);
   $('username').textContent = state.user ? state.user.name : '';
   $('page-now').value = String(state.page);
-  $('page-total').textContent = '共 ' + rows.length + ' 项，' + pages + ' 页';
+  $('page-total').textContent = '/' + pages;
   $('page-prev').disabled = state.page <= 1;
   $('page-next').disabled = state.page >= pages;
   $('nav-bar').hidden = state.searching;
@@ -726,8 +725,6 @@ $('page-next').addEventListener('click', () => {
   state.page += 1;
   render();
 });
-
-$('page-jump').addEventListener('click', jumpToPage);
 
 submitOnEnter('page-now', jumpToPage);
 submitOnEnter('page-size', applyPageSize);
