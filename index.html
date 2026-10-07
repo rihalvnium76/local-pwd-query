@@ -660,6 +660,13 @@ function jumpToPage() {
   render();
 }
 
+function applyPageSize() {
+  const size = Number($('page-size').value);
+  state.size = Number.isFinite(size) ? size : 0;
+  state.page = 1;
+  render();
+}
+
 /* 事件 */
 
 function submitOnEnter(id, action) {
@@ -721,13 +728,7 @@ $('page-next').addEventListener('click', () => {
 $('page-jump').addEventListener('click', jumpToPage);
 
 submitOnEnter('page-now', jumpToPage);
-
-$('page-size').addEventListener('change', () => {
-  const size = Number($('page-size').value);
-  state.size = Number.isFinite(size) ? size : 0;
-  state.page = 1;
-  render();
-});
+submitOnEnter('page-size', applyPageSize);
 
 $('desc-close').addEventListener('click', () => $('desc-dlg').close());
 $('desc-copy').addEventListener('click', () => copy(state.desc, $('desc-text')));

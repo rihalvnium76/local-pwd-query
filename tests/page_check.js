@@ -145,8 +145,12 @@ element('token').fire('keydown', { key: 'Enter' });
 check('已登录时 Token 输入框回车不触发按钮', element('login').clicks - clicks, 0);
 
 element('page-size').value = '50';
+element('page-size').fire('keydown', { key: 'Enter' });
+check('每页条数输入框回车生效', read('state.size'), 50);
+
+element('page-size').value = '25';
 element('page-size').fire('change', {});
-check('每页条数输入框在 change 时生效', read('state.size'), 50);
+check('每页条数输入框只在回车时生效', read('state.size'), 50);
 
 // 输入过程中不触发：确认没有任何输入框挂逐字监听。
 const watched = ['input', 'keyup', 'keypress'];
