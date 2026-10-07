@@ -148,7 +148,7 @@
       <input id="page-now" type="number" min="1" value="1" aria-label="页码">
       <span id="page-total"></span>
       <button id="page-next" type="button">下一页</button>
-      <input id="page-size" type="number" value="100" aria-label="每页条数">
+      <input id="page-size" type="number" aria-label="每页条数">
     </div>
   </section>
 </main>
@@ -186,7 +186,7 @@
 
 const BATCH = 64;
 const PBKDF2_ITERATIONS = 600000;
-const DEFAULT_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 10;
 
 const $ = id => document.getElementById(id);
 
@@ -204,6 +204,8 @@ const state = {
   pageRows: [],
   desc: '',
 };
+
+$('page-size').value = String(state.size);
 
 let progressTick = 0;
 

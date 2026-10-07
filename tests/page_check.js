@@ -88,6 +88,9 @@ vm.createContext(context);
 vm.runInContext(script[1], context, { filename: 'index.html' });
 const read = expression => vm.runInContext(expression, context);
 
+check('默认每页条数', read('state.size'), 10);
+check('每页条数输入框初始值', element('page-size').value, '10');
+
 // 一个含 250 个文件的根目录，按每页 100 条算正好 3 页。
 const files = new Map();
 for (let index = 0; index < 250; index += 1) {
