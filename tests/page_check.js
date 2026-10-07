@@ -101,6 +101,7 @@ read(
 
 check('初始页码', read('state.page'), 1);
 check('总页数显示', element('page-total').textContent, '/3');
+check('条目总数显示在提示信息区', element('item-count').textContent, '共 250 项');
 
 element('page-now').value = '9';
 element('page-now').fire('keydown', { key: 'Enter' });
@@ -120,6 +121,7 @@ element('search-type').value = 'all';
 element('search-text').value = 'f1';
 element('search-text').fire('keydown', { key: 'Enter' });
 check('搜索框回车执行搜索', read('state.results.length') > 0, true);
+check('搜索结果的条目总数', element('item-count').textContent, `共 ${read('state.results.length')} 项`);
 
 element('pwdgen-bytes').value = '16';
 element('pwdgen-count').value = '3';

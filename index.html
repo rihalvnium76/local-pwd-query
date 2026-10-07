@@ -36,8 +36,9 @@
   input[type=number]::-webkit-outer-spin-button { appearance: none; margin: 0; }
   #token { flex: 1 1 220px; min-width: 160px; }
   #search-text { flex: 1 1 180px; min-width: 140px; }
-  #status { margin: 4px 0 10px; min-height: 1.5em; color: var(--muted); }
-  #status.bad { color: var(--bad); }
+  #status-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; min-height: 1.5em; color: var(--muted); }
+  #status-row .bad { color: var(--bad); }
+  #item-count { margin-left: auto; }
   #crumb { word-break: break-all; }
   .link { cursor: pointer; }
   .link:hover { background: #f3f5f8; }
@@ -97,7 +98,10 @@
     <button id="login" type="button">登录</button>
     <span id="username"></span>
   </div>
-  <p id="status"></p>
+  <div id="status-row">
+    <span id="status"></span>
+    <span id="item-count"></span>
+  </div>
 
   <section id="app" hidden>
     <div class="bar" id="search-bar">
@@ -369,6 +373,7 @@ function logout() {
   $('username').textContent = '';
   $('login').textContent = '登录';
   $('app').hidden = true;
+  $('item-count').textContent = '';
   setStatus('已注销');
 }
 
@@ -479,7 +484,7 @@ function runSearch() {
   state.searching = true;
   state.page = 1;
   render();
-  setStatus('找到 ' + state.results.length + ' 项');
+  setStatus('');
 }
 
 function exitSearch() {
@@ -513,6 +518,7 @@ function render() {
   $('username').textContent = state.user ? state.user.name : '';
   $('page-now').value = String(state.page);
   $('page-total').textContent = '/' + pages;
+  $('item-count').textContent = '共 ' + rows.length + ' 项';
   $('page-prev').disabled = state.page <= 1;
   $('page-next').disabled = state.page >= pages;
   $('nav-bar').hidden = state.searching;
