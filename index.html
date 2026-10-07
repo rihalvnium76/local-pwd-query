@@ -31,7 +31,9 @@
   button { cursor: pointer; }
   button:hover:not(:disabled) { background: #f3f5f8; }
   button:disabled { color: #98a2b3; cursor: default; }
-  input[type=number] { width: 5.5em; }
+  input[type=number] { width: 5.5em; appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { appearance: none; margin: 0; }
   #token { flex: 1 1 220px; min-width: 160px; }
   #search-text { flex: 1 1 180px; min-width: 140px; }
   #status { margin: 4px 0 10px; min-height: 1.5em; color: var(--muted); }
