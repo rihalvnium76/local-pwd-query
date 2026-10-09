@@ -175,7 +175,7 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 - `data/user/{tokenHash}`（每个用户一个文件）
 - `data/data`（共享数据数组）
 - `token.toml`（更新后的 Token 清单）
-- `<WEB_DATA_DIR>/version`（版本号文件）
+- `version`（版本号文件）
 
 #### 实现注意事项
 - `Crypto.Protocol.KDF.PBKDF2` 的 `hmac_hash_module` 参数要使用 `Crypto.Hash` 下的实现（如 `Crypto.Hash.SHA256`），不能省略或使用 hashlib 中的构造器
