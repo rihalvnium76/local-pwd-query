@@ -4,10 +4,10 @@
 - 系统目标：提供纯前端、离线部署（通过本地 HTTP 服务器）的加密数据查询页面，配套 Python 脚本用于数据准备
 - 组成：
     - 前端：`index.html`（单页应用）
-    - 后端工具：`cli.py`（CLI 脚本）
+    - 命令行工具：`cli.py`
 - 技术选型：
     - 前端：原生 JavaScript + MessagePack 库（UMD）
-    - 后端：Python 3.11+ 及其标准库（argparse、tomllib、http.server） + pycryptodome + msgpack
+    - 命令行工具：Python 3.11+ 及其标准库（argparse、tomllib、http.server） + pycryptodome + msgpack
 
 ## 安全与加密机制
 ### 加密算法参数
@@ -39,10 +39,10 @@
 ## 前端：离线查询页面（index.html）
 ### 文件与目录结构
 - `index.html`（主页面）
-- `version`（版本号文件，由后端工具生成）
+- `version`（版本号文件，由命令行工具生成）
 - `lib/`（第三方依赖）
     - `msgpack.min.js`（MessagePack，**全局导入对象名为 `MessagePack`**）
-- `data/`（数据文件，由后端工具生成）
+- `data/`（数据文件，由命令行工具生成）
 
 ### 页面生命周期
 #### 初始化
@@ -103,7 +103,7 @@
 - 生成类似 `secrets.token_urlsafe()` 的密码，输出到表格（序号 + 密码）
 - 密码可重复复制，复制后添加删除线（仅添加一次，标记已使用）
 
-## 后端工具（cli.py）
+## 命令行工具（cli.py）
 ### 功能概述
 - `data`：数据准备
   - 下载/更新前端依赖库（`-u`）

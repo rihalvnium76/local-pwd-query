@@ -12,7 +12,7 @@
 - `data.toml`、`token.toml`：管理员持有的明文源数据与 Token 清单
 - `lib/`、`data/`、`version`：`cli.py` 生成的前端数据
 
-后四项由 `.gitignore` 排除，仓库里只有工具与页面源码。后端要求 Python 3.11+。
+后四项由 `.gitignore` 排除，仓库里只有工具与页面源码。命令行工具要求 Python 3.11+。
 
 ## 本地运行
 
