@@ -63,17 +63,11 @@ const context = {
   document: {
     getElementById: element,
     createElement: () => makeElement('created'),
-    head: { append() {} },
+    // 桩里没有服务器，脚本加载失败，boot() 因此停在初始化失败，交互检查直接驱动事件。
+    head: { append: script => script.onerror() },
     createRange: () => ({ selectNodeContents() {} }),
   },
   localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  // boot() 会去请求 version，这里让它失败：交互检查不依赖服务器，失败路径由 pytest 之外的人工确认覆盖。
-  fetch: async () => ({
-    ok: false,
-    status: 500,
-    text: async () => '',
-    arrayBuffer: async () => new ArrayBuffer(0),
-  }),
   navigator: { clipboard: { writeText: async () => {} } },
   Date,
   setTimeout,

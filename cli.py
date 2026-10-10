@@ -39,12 +39,11 @@ DEFAULT_INPUT = './data.toml'
 DEFAULT_TOKEN_FILE = './token.toml'
 DEFAULT_WEB_DATA_DIR = './'
 
-VERSION_FILE = 'version'
+INDEX_FILE = 'index.html'
 DATA_DIR = 'data'
 USER_DIR = 'user'
 SHARED_DATA_FILE = 'data'
 
-STATIC_FILES = ('index.html', VERSION_FILE)
 STATIC_DIRS = ('lib', DATA_DIR)
 
 DEPENDENCIES = (
@@ -308,11 +307,6 @@ def download_dependencies(web_data_dir: Path) -> None:
         print(f'{relative} {len(content)} 字节')
 
 
-def write_version(web_data_dir: Path) -> None:
-    web_data_dir.mkdir(parents=True, exist_ok=True)
-    (web_data_dir / VERSION_FILE).write_text(secrets.token_urlsafe(), encoding='utf-8')
-
-
 def static_relative_path(url_path: str) -> str | None:
     '''把请求路径映射为前端数据目录里的相对路径，白名单之外的路径返回 None。'''
     path = urllib.parse.unquote(url_path.split('?', 1)[0].split('#', 1)[0])
@@ -321,11 +315,9 @@ def static_relative_path(url_path: str) -> str | None:
         return None
     if path.endswith('/'):
         # 只有根路径映射到 index.html，目录本身不提供。
-        return 'index.html' if path == '/' else None
+        return INDEX_FILE if path == '/' else None
     relative = posixpath.normpath(path).lstrip('/')
-    if relative in STATIC_FILES:
-        return relative
-    if any(relative.startswith(f'{name}/') for name in STATIC_DIRS):
+    if relative == INDEX_FILE or any(relative.startswith(f'{name}/') for name in STATIC_DIRS):
         return relative
     return None
 
@@ -363,7 +355,6 @@ def run_data(args: argparse.Namespace, web_data_dir: Path) -> None:
         download_dependencies(web_data_dir)
     if args.convert:
         convert(Path(args.convert_input or DEFAULT_INPUT), web_data_dir)
-    write_version(web_data_dir)
 
 
 def build_parser() -> argparse.ArgumentParser:

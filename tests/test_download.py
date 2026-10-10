@@ -39,4 +39,3 @@ def test_dependencies_are_downloaded(
     assert cli.main(['data', '-u', str(tmp_path / 'build')]) == 0
 
     assert (tmp_path / 'build' / 'lib' / 'msgpack.min.js').read_bytes() == CONTENT
-    assert (tmp_path / 'build' / 'version').is_file()

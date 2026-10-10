@@ -119,13 +119,11 @@ def test_file_fields_survive_the_round_trip(workspace: Path) -> None:
 def test_existing_tokens_are_reused(workspace: Path) -> None:
     cli.main(['data', '-c'])
     first_user_file = (workspace / 'data' / 'user' / token_hash(ALICE)).read_bytes()
-    first_version = (workspace / 'version').read_text(encoding='utf-8')
 
     cli.main(['data', '-c'])
 
     assert (workspace / 'token.toml').read_text(encoding='utf-8') == TOKENS
     assert (workspace / 'data' / 'user' / token_hash(ALICE)).read_bytes() != first_user_file
-    assert (workspace / 'version').read_text(encoding='utf-8') != first_version
     assert set(read_files(workspace, ALICE)) == {'/docs/a.txt', '/docs/b.txt', '/secret/c.txt'}
 
 
@@ -210,17 +208,6 @@ def test_duplicate_tokens_are_rejected(workspace: Path) -> None:
     assert 'Token 相同' in str(exit_code.value)
 
 
-def test_data_without_actions_only_refreshes_the_version(workspace: Path) -> None:
-    cli.main(['data', '-c'])
-    shared = (workspace / 'data' / 'data').read_bytes()
-    version = (workspace / 'version').read_text(encoding='utf-8')
-
-    assert cli.main(['data']) == 0
-
-    assert (workspace / 'data' / 'data').read_bytes() == shared
-    assert (workspace / 'version').read_text(encoding='utf-8') != version
-
-
 def test_convert_input_requires_convert(
     workspace: Path,
     capsys: pytest.CaptureFixture[str],
@@ -243,6 +230,5 @@ def test_convert_reads_the_given_file(workspace: Path) -> None:
 def test_web_data_dir_is_created_and_filled(workspace: Path) -> None:
     cli.main(['data', '-c', 'build'])
 
-    assert (workspace / 'build' / 'version').is_file()
     assert (workspace / 'build' / 'data' / 'data').is_file()
     assert set(read_files(workspace / 'build', BOB)) == {'/docs/a.txt', '/docs/b.txt'}

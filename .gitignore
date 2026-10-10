@@ -7,6 +7,5 @@ __pycache__/
 # cli.py 生成的前端数据，以及只有管理员持有的明文源数据
 /lib/
 /data/
-/version
 /data.toml
 /token.toml

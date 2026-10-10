@@ -10,7 +10,7 @@
 - `pyproject.toml`：依赖、ruff、pyright、pytest 的配置
 - `tests/`：数据转换、web 路由与页面交互的检查
 - `data.toml`、`token.toml`：管理员持有的明文源数据与 Token 清单
-- `lib/`、`data/`、`version`：`cli.py` 生成的前端数据
+- `lib/`、`data/`：`cli.py` 生成的前端数据
 
 后四项由 `.gitignore` 排除，仓库里只有工具与页面源码。命令行工具要求 Python 3.11+。
 
@@ -38,7 +38,7 @@ uv run cli.py data -c                                       # 生成完重新转
 
 ## 部署
 
-发布目录里的 `index.html`、`version`、`lib/`、`data/` 由浏览器按相对路径加载，必须同处一个目录。发布时把它们生成到站点目录再提交：
+发布目录里的 `index.html`、`lib/`、`data/` 由浏览器按相对路径加载，必须同处一个目录。发布时把它们生成到站点目录再提交：
 
 ```sh
 uv run cli.py data -u -c 站点目录

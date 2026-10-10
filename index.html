@@ -191,7 +191,6 @@ const DEFAULT_PAGE_SIZE = 10;
 const $ = id => document.getElementById(id);
 
 const state = {
-  version: '',
   shared: [],
   user: null,
   dirIndex: new Map(),
@@ -217,10 +216,6 @@ function setStatus(text, bad) {
   status.className = bad ? 'bad' : '';
 }
 
-function withVersion(path) {
-  return path + '?v=' + encodeURIComponent(state.version);
-}
-
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
@@ -232,7 +227,7 @@ function loadScript(src) {
 }
 
 async function fetchBytes(path) {
-  const response = await fetch(withVersion(path));
+  const response = await fetch(path);
   if (!response.ok) throw new Error(path + ' 返回 ' + response.status);
   return new Uint8Array(await response.arrayBuffer());
 }
@@ -241,11 +236,7 @@ async function init() {
   if (!globalThis.crypto || !crypto.subtle) {
     throw new Error('当前环境不提供 WebCrypto，请用 HTTPS 或 localhost 打开页面');
   }
-  const version = await fetch('version', { cache: 'no-store' });
-  if (!version.ok) throw new Error('version 返回 ' + version.status);
-  state.version = (await version.text()).trim();
-
-  await loadScript(withVersion('lib/msgpack.min.js'));
+  await loadScript('lib/msgpack.min.js');
   state.shared = MessagePack.decode(await fetchBytes('data/data'));
 }
 
@@ -316,7 +307,7 @@ async function decryptEverything(user) {
 async function login(token) {
   const tokenBytes = new TextEncoder().encode(token);
   const hash = base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', tokenBytes)));
-  const response = await fetch(withVersion('data/user/' + hash));
+  const response = await fetch('data/user/' + hash);
   if (!response.ok) throw new Error('Token 无效');
   const file = new Uint8Array(await response.arrayBuffer());
   const [salt, nonce, blob] = MessagePack.decode(file);

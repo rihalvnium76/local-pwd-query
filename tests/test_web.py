@@ -21,13 +21,13 @@ def server(
     web = tmp_path / 'web'
     (web / 'lib').mkdir(parents=True)
     (web / 'index.html').write_text(INDEX, encoding='utf-8')
-    (web / 'version').write_text('web-version', encoding='utf-8')
     (web / 'lib' / 'msgpack.min.js').write_text('lib', encoding='utf-8')
 
     work = tmp_path / 'work'
+    (work / 'lib').mkdir(parents=True)
     (work / 'data' / 'user').mkdir(parents=True)
     (work / 'index.html').write_text('<html>work</html>', encoding='utf-8')
-    (work / 'version').write_text('work-version', encoding='utf-8')
+    (work / 'lib' / 'msgpack.min.js').write_text('work-lib', encoding='utf-8')
     (work / 'data' / 'data').write_bytes(b'shared')
     (work / 'data' / 'user' / 'abc').write_bytes(b'user')
     (work / 'cli.py').write_text('secret', encoding='utf-8')
@@ -60,7 +60,6 @@ def test_root_and_index_come_from_the_data_dir(server: http.server.ThreadingHTTP
 
 
 def test_assets_come_from_the_data_dir_first(server: http.server.ThreadingHTTPServer) -> None:
-    assert fetch(server, '/version') == (200, b'web-version')
     assert fetch(server, '/lib/msgpack.min.js') == (200, b'lib')
 
 
@@ -71,8 +70,8 @@ def test_missing_files_fall_back_to_the_working_directory(
     assert fetch(server, '/data/user/abc') == (200, b'user')
 
 
-def test_version_query_parameter_is_ignored(server: http.server.ThreadingHTTPServer) -> None:
-    assert fetch(server, '/data/data?v=abc123') == (200, b'shared')
+def test_query_parameters_are_ignored(server: http.server.ThreadingHTTPServer) -> None:
+    assert fetch(server, '/data/data?x=1') == (200, b'shared')
 
 
 def test_head_returns_no_body(server: http.server.ThreadingHTTPServer) -> None:
@@ -93,7 +92,6 @@ def test_head_returns_no_body(server: http.server.ThreadingHTTPServer) -> None:
         '/data',
         '/data/user',
         '/data/nope',
-        '/version/',
     ],
 )
 def test_paths_outside_the_whitelist_are_not_found(
