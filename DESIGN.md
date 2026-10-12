@@ -1,4 +1,4 @@
-# 离线查询系统
+# 本地密码查询系统
 
 ## 概述
 - 系统目标：提供纯前端的加密数据查询页面，解密与检索都在浏览器内完成；配套的 Python 命令行工具生成页面加载的静态文件
@@ -36,7 +36,7 @@
     - `group`：`[[fileId, fileKey], ...]`
     - `file`：`{"path": str, "loc": str?, "pwd": str?, "desc": str?, "author": str?}`
 
-## 前端：离线查询页面（index.html）
+## 前端：本地密码查询页面（index.html）
 ### 文件与目录结构
 - `index.html`（主页面）
 - `lib/`（第三方依赖）

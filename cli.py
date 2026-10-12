@@ -1,4 +1,4 @@
-'''离线查询系统的数据准备工具与本地 HTTP 服务器。
+'''本地密码查询系统的数据准备工具与本地 HTTP 服务器。
 
 用法见 DESIGN.md，这里只实现文档规定的行为。
 '''
@@ -360,7 +360,7 @@ def run_data(args: argparse.Namespace, web_data_dir: Path) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='cli.py',
-        description='离线查询系统的数据准备工具与本地 HTTP 服务器',
+        description='本地密码查询系统的数据准备工具与本地 HTTP 服务器',
     )
     commands = parser.add_subparsers(dest='command', required=True)
 

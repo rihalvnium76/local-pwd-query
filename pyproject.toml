@@ -1,7 +1,7 @@
 [project]
 name = 'localpwdquery'
 version = '0.1.0'
-description = '离线加密查询系统的数据准备工具、本地 HTTP 服务器与前端页面'
+description = '本地密码查询系统的数据准备工具、本地 HTTP 服务器与前端页面'
 readme = 'README.md'
 requires-python = '>=3.11'
 dependencies = [
