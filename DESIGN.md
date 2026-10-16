@@ -13,7 +13,7 @@
 ### 加密算法参数
 - Token 生成：`secrets.token_urlsafe()`
 - 密钥派生：PBKDF2‑HMAC‑SHA‑256（盐长 16 字节，迭代 600 000 次，输出 32 字节）
-- 数据加密：AES‑256‑GCM（Nonce 12 字节，Tag 16 字节）
+- 数据加密：AES‑256‑GCM（Nonce 12 字节，Tag 16 字节，AAD 为空）
 - 盐、Nonce、非派生密钥生成：`secrets.token_bytes()`
 
 ## 公共契约
