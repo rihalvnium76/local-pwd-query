@@ -16,12 +16,15 @@
 - 数据加密：AES‑256‑GCM（Nonce 12 字节，Tag 16 字节）
 - 盐、Nonce、非派生密钥生成：`secrets.token_bytes()`
 
-### 数据加密层级
-- 用户文件：`data/user/{tokenHash}`（盐 + Nonce + 密文+Tag）
-- 共享数据文件：`data/data`（数组，每个元素为 Nonce + 密文+Tag，数组下标即 ID）
-- 密钥管理：用户密钥派生自 Token；分组密钥和文件密钥由工具随机生成并加密存储
+## 公共契约
+### 文件与请求路径
+- `index.html`：页面本身
+- `lib/msgpack.min.js`：MessagePack 的 UMD 构建，全局导出对象名为 `MessagePack`
+- `data/data`：共享数据文件
+- `data/user/{tokenHash}`：用户文件，`tokenHash = urlsafe_base64_nopadding(sha256(utf8_bytes(token)))`
 
-## 数据规范
+页面用相对自身地址的路径请求这些文件
+
 ### 虚拟路径规范
 - 以 `/` 开头，目录以 `/` 结尾，文件不能以 `/` 结尾
 - 目录与文件在同一路径下不可重名
@@ -30,30 +33,25 @@
 
 ### 文件存储格式（MessagePack）
 - **用户文件**：`[salt (bin), nonce (bin), ciphertext+tag (bin)]`
-- **共享数据文件**：`[ [nonce, ciphertext+tag], … ]`，数组下标即 ID
+- **共享数据文件**：`[[nonce (bin), ciphertext+tag (bin)], …]`，分组与文件共用这个数组，两类的下标互不重叠
+- `groupKey` 与 `fileKey` 是 32 字节原始 AES 密钥，解密共享数据文件中对应下标的元素，元素的类型由所用的密钥决定
 - 解密后的结构：
     - `user`：`{"name": str, "groups": [[groupId, groupKey], ...]}`
     - `group`：`[[fileId, fileKey], ...]`
     - `file`：`{"path": str, "loc": str?, "pwd": str?, "desc": str?, "author": str?}`
 
 ## 前端：本地密码查询页面（index.html）
-### 文件与目录结构
-- `index.html`（主页面）
-- `lib/`（第三方依赖）
-    - `msgpack.min.js`（MessagePack，**全局导入对象名为 `MessagePack`**）
-- `data/`（数据文件，由命令行工具生成）
-
 ### 页面生命周期
 #### 初始化
-- 加载 `msgpack.min.js` 与 `data/data`（后者需反序列化）
+- 加载 `lib/msgpack.min.js` 与 `data/data`（后者需反序列化）
 - 以上步骤失败则禁止登录
 - 检查 `localStorage` 中的 Token，自动尝试登录
 
 #### 登录流程
-- 用户输入 Token → 计算 `tokenHash = urlsafe_base64_nopadding(sha256(utf8_bytes(token)))`
+- 用户输入 Token → 计算 `tokenHash`
 - 读取 `data/user/{tokenHash}`，提取盐、Nonce、密文
 - PBKDF2 对 `utf8_bytes(token)` 派生密钥 → AES‑GCM 解密得到 `user` 对象
-- 遍历 `user.groups`，用分组密钥解密 `data` 中的分组（`group` 对象），再从分组递归解密出文件（`file` 对象），构建虚拟路径树
+- 遍历 `user.groups`，用分组密钥解密共享数据文件中的分组（`group` 对象），再从分组递归解密出文件（`file` 对象），构建虚拟路径树
 - 登录成功 → 存储 Token 到 `localStorage`，显示根目录；失败则提示错误
     - 登录成功但无文件展示要提示“暂无可访问的资源”
 
@@ -61,7 +59,7 @@
 - 分批并行解密分组和文件（每 2 秒更新进度）
 
 #### 加载
-- 使用 `fetch()` 自动加载固定路径的本地文件，路径相对于页面本身
+- 使用 `fetch()` 加载公共契约列出的文件，路径相对于页面本身
 
 ### UI 设计与交互
 #### 布局
@@ -121,7 +119,7 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 |---|---|
 | `-u` | 下载依赖到 `<WEB_DATA_DIR>/lib/` |
 | `-c [--convert-input <ORIG_FILE>]` | 转换数据（`ORIG_FILE`，默认 `./data.toml`）到 `<WEB_DATA_DIR>/data/`。静默重建 `data/`（**重建不包含 `<WEB_DATA_DIR>/` 和它的其他子目录**）。单独指定 `--convert-input` 而不指定 `-c` 则报错 |
-| `[WEB_DATA_DIR]` | 前端数据目录，默认 `./`（见公共定义） |
+| `[WEB_DATA_DIR]` | 前端数据目录，默认 `./`（见命令结构） |
 
 - 若目录不存在则递归创建
 
@@ -130,11 +128,11 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 |---|---|
 | `-b <ADDRESS>` | 绑定监听地址（默认 `127.0.0.1`） |
 | `-p <PORT>` | 监听端口（默认 `8000`） |
-| `[WEB_DATA_DIR]` | 前端数据目录，默认 `./`（见公共定义） |
+| `[WEB_DATA_DIR]` | 前端数据目录，默认 `./`（见命令结构） |
 
 - 启动 HTTP 服务器
     - 启动成功后向标准输出打印浏览器地址，形如 `http://127.0.0.1:8000/`
-    - 只提供前端“文件与目录结构”列出的路径，其余路径一律返回 `404`
+    - 只提供公共契约列出的文件，其余路径一律返回 `404`
     - 请求 `/` 等价于请求 `/index.html`
     - 先从 `<WEB_DATA_DIR>` 查找文件，未命中时再从当前工作目录查找
     - 拒绝包含 `..` 的路径穿越请求（在 URL 解码和路径规范化后检查）
@@ -142,7 +140,7 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 ### 依赖列表（`data -u`）
 | 本地路径 | 下载地址 |
 | --- | --- |
-| `<WEB_DATA_DIR>/lib/msgpack.min.js` | `https://unpkg.com/@msgpack/msgpack/dist.umd/msgpack.min.js` |
+| `lib/msgpack.min.js` | `https://unpkg.com/@msgpack/msgpack/dist.umd/msgpack.min.js` |
 
 ### 数据转换流程
 #### 输入：原始数据文件（data.toml）
@@ -163,14 +161,9 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
     - 若用户已有 Token 则复用，否则生成新 Token 并写入清单
     - 检查 Token 唯一性，警告未定义用户
 4. 加密各对象：
-    - user：使用 Token 派生密钥加密 → 写入 `data/user/{tokenHash}`
-    - group/file：使用各自密钥加密 → 存入 `data/data` 对应下标位置
+    - user：使用 Token 派生密钥加密 → 写入用户文件
+    - group/file：使用各自密钥加密 → 存入共享数据文件的对应下标
 5. 输出统计信息（已处理的用户数、分组数、文件数等）
-
-#### 输出文件
-- `data/user/{tokenHash}`（每个用户一个文件）
-- `data/data`（共享数据数组）
-- `token.toml`（更新后的 Token 清单）
 
 #### 实现注意事项
 - `Crypto.Protocol.KDF.PBKDF2` 的 `hmac_hash_module` 参数要使用 `Crypto.Hash` 下的实现（如 `Crypto.Hash.SHA256`），不能省略或使用 hashlib 中的构造器
