@@ -33,11 +33,10 @@
 
 ### 文件存储格式（MessagePack）
 - **用户文件**：`[salt (bin), nonce (bin), ciphertext+tag (bin)]`
-- **共享数据文件**：`[[nonce (bin), ciphertext+tag (bin)], …]`，分组与文件共用这个数组，两类的下标互不重叠
-- `groupKey` 与 `fileKey` 是 32 字节原始 AES 密钥，解密共享数据文件中对应下标的元素，元素的类型由所用的密钥决定
+- **共享数据文件**：`[[nonce (bin), ciphertext+tag (bin)], …]`
 - 解密后的结构：
-    - `user`：`{"name": str, "groups": [[groupId, groupKey], ...]}`
-    - `group`：`[[fileId, fileKey], ...]`
+    - `user`：`{"name": str, "groups": [[dataIndex (uint), groupKey (bin)], ...]}`
+    - `group`：`[[dataIndex (uint), fileKey (bin)], ...]`
     - `file`：`{"path": str, "loc": str?, "pwd": str?, "desc": str?, "author": str?}`
 
 ## 前端：本地密码查询页面（index.html）
