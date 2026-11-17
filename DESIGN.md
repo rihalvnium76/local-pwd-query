@@ -144,7 +144,7 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 ### 数据转换流程
 #### 输入：原始数据文件（data.toml）
 - 结构：
-    - `token_file`（可选，指向 Token 清单文件，默认 `./token.toml`）
+    - `token_file`（可选，指向 Token 清单文件；相对路径以本文件所在目录为基准，默认 `token.toml`）
     - `[user."<userName>"]`（空表）
     - `[group."<groupName>"]` + `users = ["<userName>"]`
     - `[file."<virtualFilePath>"]` + `loc`, `pwd`, `desc`, `author`, `groups = ["<groupName>"]`

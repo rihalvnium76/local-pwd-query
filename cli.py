@@ -36,7 +36,7 @@ DOWNLOAD_TIMEOUT = 30
 REQUEST_TIMEOUT = 30
 
 DEFAULT_INPUT = './data.toml'
-DEFAULT_TOKEN_FILE = './token.toml'
+DEFAULT_TOKEN_FILE = 'token.toml'
 DEFAULT_WEB_DATA_DIR = './'
 
 INDEX_FILE = 'index.html'
@@ -171,7 +171,10 @@ def read_source(input_path: Path) -> Source:
     token_file = raw.get('token_file', DEFAULT_TOKEN_FILE)
     if not isinstance(token_file, str):
         raise SystemExit(f'{input_path} 的 token_file 须为字符串')
-    return Source(users=users, groups=groups, files=files, token_file=Path(token_file))
+    token_path = Path(token_file)
+    if not token_path.is_absolute():
+        token_path = input_path.parent / token_path
+    return Source(users=users, groups=groups, files=files, token_file=token_path)
 
 
 def token_hash(token: str) -> str:

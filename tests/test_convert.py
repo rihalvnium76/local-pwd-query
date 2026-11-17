@@ -227,6 +227,20 @@ def test_convert_reads_the_given_file(workspace: Path) -> None:
     assert set(read_files(workspace, ALICE)) == set()
 
 
+def test_token_file_is_resolved_next_to_the_source(workspace: Path) -> None:
+    configs = workspace / 'configs'
+    configs.mkdir()
+    (configs / 'data.toml').write_text(SOURCE, encoding='utf-8')
+    (configs / 'token.toml').write_text(TOKENS, encoding='utf-8')
+    (workspace / 'token.toml').unlink()
+
+    cli.main(['data', '-c', 'configs', '--convert-input', 'configs/data.toml'])
+
+    assert (configs / 'token.toml').read_text(encoding='utf-8') == TOKENS
+    assert not (workspace / 'token.toml').exists()
+    assert set(read_files(configs, ALICE)) == {'/docs/a.txt', '/docs/b.txt', '/secret/c.txt'}
+
+
 def test_web_data_dir_is_created_and_filled(workspace: Path) -> None:
     cli.main(['data', '-c', 'build'])
 
