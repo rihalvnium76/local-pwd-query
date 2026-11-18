@@ -1,4 +1,4 @@
-'''往 data.toml 追加压测用的批量条目，供页面在大数据量下试用。
+'''往源数据文件追加压测用的批量条目，供页面在大数据量下试用。
 
 条目放在 --root 下，按 --dirs 与 --depth 铺成目录树，重跑脚本会整段替换上一次生成的内容。
 '''
@@ -16,7 +16,6 @@ DEFAULT_GROUP = '家庭'
 AUTHORS = ('alice', 'bob')
 MARKER = '# 以下压测条目由 gen_bulk_data.py 生成'
 MARKER_TAIL = '，重跑脚本会整段替换。'
-DATA_TOML = Path('data.toml')
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +44,7 @@ def non_negative(text: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='gen_bulk_data.py',
-        description='把压测用的批量条目写进 data.toml，上一次生成的整段会被替换',
+        description='把压测用的批量条目写进源数据文件，上一次生成的整段会被替换',
     )
     parser.add_argument(
         '--count',
@@ -79,6 +78,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar='L',
         help='根目录下的目录层数，0 表示条目直接放在根目录下，默认 0',
+    )
+    parser.add_argument(
+        'orig_file',
+        metavar='ORIG_FILE',
+        help='要追加压测条目的源数据文件',
     )
     return parser
 
@@ -120,6 +124,7 @@ def entries(shape: Shape, paths: Sequence[str]) -> Iterator[str]:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    orig_file = Path(args.orig_file)
     shape = Shape(
         root=args.root, count=args.count, group=args.group, dirs=args.dirs, depth=args.depth
     )
@@ -128,10 +133,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         f'{MARKER}（count={shape.count}, dirs={shape.dirs}, depth={shape.depth},'
         f' root={shape.root}, group={shape.group}）{MARKER_TAIL}'
     )
-    base = DATA_TOML.read_text(encoding='utf-8').split(MARKER, 1)[0].rstrip()
+    base = orig_file.read_text(encoding='utf-8').split(MARKER, 1)[0].rstrip()
     block = ''.join(entries(shape, paths))
-    DATA_TOML.write_text(f'{base}\n\n{summary}\n{block}', encoding='utf-8')
-    print(f'{shape.count} 条压测条目写入 {DATA_TOML}，分布在 {len(paths)} 个目录')
+    orig_file.write_text(f'{base}\n\n{summary}\n{block}', encoding='utf-8')
+    print(f'{shape.count} 条压测条目写入 {orig_file}，分布在 {len(paths)} 个目录')
 
 
 if __name__ == '__main__':

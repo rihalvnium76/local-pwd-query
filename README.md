@@ -6,7 +6,7 @@
 
 - `index.html`：前端单页，样式与脚本都内联在其中
 - `cli.py`：`data` 子命令准备前端数据，`web` 子命令起本地 HTTP 服务器
-- `gen_bulk_data.py`：往 `data.toml` 追加一段压测条目，供页面上试用大数据量
+- `gen_bulk_data.py`：往源数据文件追加一段压测条目，供页面上试用大数据量
 - `pyproject.toml`：依赖、ruff、pyright、pytest 的配置
 - `tests/`：数据转换、web 路由与页面交互的检查
 - `data.toml`、`token.toml`：管理员持有的明文源数据与 Token 清单
@@ -26,11 +26,11 @@ uv run cli.py web            # 默认 http://127.0.0.1:8000/
 
 ## 大数据量试用
 
-`gen_bulk_data.py` 在 `data.toml` 末尾追加一段压测条目，上一次生成的整段会被替换掉。条目总数、虚拟根目录、所属分组、目录形状都由命令行参数控制，完整参数见 `uv run gen_bulk_data.py --help`：
+`gen_bulk_data.py` 在源数据文件末尾追加一段压测条目，上一次生成的整段会被替换掉。条目总数、虚拟根目录、所属分组、目录形状都由命令行参数控制，完整参数见 `uv run gen_bulk_data.py --help`：
 
 ```sh
-uv run gen_bulk_data.py --count 10000 --dirs 50 --depth 1   # 10000 条，分到 50 个目录
-uv run gen_bulk_data.py --count 5000 --dirs 10 --depth 2    # 两级目录共 100 个，每个 50 条
+uv run gen_bulk_data.py data.toml --count 10000 --dirs 50 --depth 1   # 10000 条，分到 50 个目录
+uv run gen_bulk_data.py data.toml --count 5000 --dirs 10 --depth 2    # 两级目录共 100 个，每个 50 条
 uv run cli.py data -c                                       # 生成完重新转换一次数据
 ```
 
