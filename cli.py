@@ -356,8 +356,8 @@ def run_web(address: str, port: int, web_data_dir: Path) -> None:
 def run_data(args: argparse.Namespace, web_data_dir: Path) -> None:
     if args.update:
         download_dependencies(web_data_dir)
-    if args.convert:
-        convert(Path(args.convert_input or DEFAULT_INPUT), web_data_dir)
+    if args.convert is not None:
+        convert(Path(args.convert), web_data_dir)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -371,15 +371,17 @@ def build_parser() -> argparse.ArgumentParser:
     data.add_argument(
         '-u', dest='update', action='store_true', help='下载依赖到 <WEB_DATA_DIR>/lib/'
     )
-    data.add_argument('-c', dest='convert', action='store_true', help='把原始数据转换为加密数据')
     data.add_argument(
-        '--convert-input',
+        '-c',
+        dest='convert',
+        nargs='?',
+        const=DEFAULT_INPUT,
         metavar='ORIG_FILE',
-        help=f'原始数据文件，默认 {DEFAULT_INPUT}',
+        help=f'把原始数据转换为加密数据，默认 {DEFAULT_INPUT}',
     )
     data.add_argument(
-        'web_data_dir',
-        nargs='?',
+        '-d',
+        dest='web_data_dir',
         default=DEFAULT_WEB_DATA_DIR,
         metavar='WEB_DATA_DIR',
         help=f'前端数据目录，默认 {DEFAULT_WEB_DATA_DIR}',
@@ -389,8 +391,8 @@ def build_parser() -> argparse.ArgumentParser:
     web.add_argument('-b', dest='bind', default='127.0.0.1', metavar='ADDRESS', help='监听地址')
     web.add_argument('-p', dest='port', type=int, default=8000, metavar='PORT', help='监听端口')
     web.add_argument(
-        'web_data_dir',
-        nargs='?',
+        '-d',
+        dest='web_data_dir',
         default=DEFAULT_WEB_DATA_DIR,
         metavar='WEB_DATA_DIR',
         help=f'前端数据目录，默认 {DEFAULT_WEB_DATA_DIR}',
@@ -402,8 +404,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == 'data':
-        if args.convert_input is not None and not args.convert:
-            parser.error('--convert-input 须与 -c 一起使用')
         run_data(args, Path(args.web_data_dir))
         return 0
     if args.command == 'web':

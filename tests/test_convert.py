@@ -208,21 +208,10 @@ def test_duplicate_tokens_are_rejected(workspace: Path) -> None:
     assert 'Token 相同' in str(exit_code.value)
 
 
-def test_convert_input_requires_convert(
-    workspace: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    with pytest.raises(SystemExit) as exit_code:
-        cli.main(['data', '--convert-input', 'other.toml'])
-
-    assert exit_code.value.code == 2
-    assert '须与 -c 一起使用' in capsys.readouterr().err
-
-
 def test_convert_reads_the_given_file(workspace: Path) -> None:
     (workspace / 'other.toml').write_text('[user.alice]\n', encoding='utf-8')
 
-    cli.main(['data', '-c', '--convert-input', 'other.toml'])
+    cli.main(['data', '-c', 'other.toml'])
 
     assert set(read_files(workspace, ALICE)) == set()
 
@@ -234,7 +223,7 @@ def test_token_file_is_resolved_next_to_the_source(workspace: Path) -> None:
     (configs / 'token.toml').write_text(TOKENS, encoding='utf-8')
     (workspace / 'token.toml').unlink()
 
-    cli.main(['data', '-c', 'configs', '--convert-input', 'configs/data.toml'])
+    cli.main(['data', '-c', 'configs/data.toml', '-d', 'configs'])
 
     assert (configs / 'token.toml').read_text(encoding='utf-8') == TOKENS
     assert not (workspace / 'token.toml').exists()
@@ -242,7 +231,7 @@ def test_token_file_is_resolved_next_to_the_source(workspace: Path) -> None:
 
 
 def test_web_data_dir_is_created_and_filled(workspace: Path) -> None:
-    cli.main(['data', '-c', 'build'])
+    cli.main(['data', '-c', '-d', 'build'])
 
     assert (workspace / 'build' / 'data' / 'data').is_file()
     assert set(read_files(workspace / 'build', BOB)) == {'/docs/a.txt', '/docs/b.txt'}

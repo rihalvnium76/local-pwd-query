@@ -36,6 +36,6 @@ def test_dependencies_are_downloaded(
 ) -> None:
     monkeypatch.setattr(cli, 'DEPENDENCIES', (('lib/msgpack.min.js', origin),))
 
-    assert cli.main(['data', '-u', str(tmp_path / 'build')]) == 0
+    assert cli.main(['data', '-u', '-d', str(tmp_path / 'build')]) == 0
 
     assert (tmp_path / 'build' / 'lib' / 'msgpack.min.js').read_bytes() == CONTENT

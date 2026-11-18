@@ -41,7 +41,7 @@ uv run cli.py data -c                                       # 生成完重新转
 发布目录里的 `index.html`、`lib/`、`data/` 由浏览器按相对路径加载，必须同处一个目录。发布时把它们生成到站点目录再提交：
 
 ```sh
-uv run cli.py data -u -c 站点目录
+uv run cli.py data -u -c -d 站点目录
 ```
 
 ## 验证

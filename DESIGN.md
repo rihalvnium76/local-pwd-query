@@ -107,18 +107,18 @@
 
 ### 命令结构
 ```
-cli.py data [-u] [-c [--convert-input <ORIG_FILE>]] [WEB_DATA_DIR]
-cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
+cli.py data [-u] [-c [ORIG_FILE]] [-d <WEB_DATA_DIR>]
+cli.py web [-b <ADDRESS>] [-p <PORT>] [-d <WEB_DATA_DIR>]
 ```
 
-- `WEB_DATA_DIR`：含有或存放 `lib/`、`data/` 的前端数据目录，该目录可以不包含前端页面本身，默认 `./`
+- `-d <WEB_DATA_DIR>`：指定前端数据目录。`WEB_DATA_DIR` 是含有或存放 `lib/`、`data/` 的前端数据目录，该目录可以不包含前端页面本身，默认 `./`
 
 ### `data` 子命令参数
 | 参数 | 说明 |
 |---|---|
 | `-u` | 下载依赖到 `<WEB_DATA_DIR>/lib/` |
-| `-c [--convert-input <ORIG_FILE>]` | 转换数据（`ORIG_FILE`，默认 `./data.toml`）到 `<WEB_DATA_DIR>/data/`。静默重建 `data/`（重建不包含 `<WEB_DATA_DIR>/` 和它的其他子目录）。单独指定 `--convert-input` 而不指定 `-c` 则报错 |
-| `[WEB_DATA_DIR]` | 前端数据目录，默认 `./`（见命令结构） |
+| `-c [ORIG_FILE]` | 转换数据（`ORIG_FILE`，默认 `./data.toml`）到 `<WEB_DATA_DIR>/data/`。静默重建 `data/`（重建不包含 `<WEB_DATA_DIR>/` 和它的其他子目录） |
+| `-d <WEB_DATA_DIR>` | 指定前端数据目录（见命令结构） |
 
 - 若目录不存在则递归创建
 
@@ -127,7 +127,7 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [WEB_DATA_DIR]
 |---|---|
 | `-b <ADDRESS>` | 绑定监听地址（默认 `127.0.0.1`） |
 | `-p <PORT>` | 监听端口（默认 `8000`） |
-| `[WEB_DATA_DIR]` | 前端数据目录，默认 `./`（见命令结构） |
+| `-d <WEB_DATA_DIR>` | 指定前端数据目录（见命令结构） |
 
 - 启动 HTTP 服务器
     - 启动成功后向标准输出打印浏览器地址，形如 `http://127.0.0.1:8000/`
