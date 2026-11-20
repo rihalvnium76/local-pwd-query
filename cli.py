@@ -17,7 +17,7 @@ import tomllib
 import urllib.parse
 import urllib.request
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -50,26 +50,34 @@ DEPENDENCIES = (
     ('lib/msgpack.min.js', 'https://unpkg.com/@msgpack/msgpack/dist.umd/msgpack.min.js'),
 )
 
-FILE_KEYS = frozenset({'loc', 'pwd', 'desc', 'author', 'groups'})
+ATTRIBUTE_KEYS = ('loc', 'pwd', 'desc', 'author')
 GROUP_KEYS = frozenset({'users'})
-SOURCE_KEYS = frozenset({'token_file', 'user', 'group', 'file'})
+SOURCE_KEYS = frozenset({'token_file', 'user', 'group', 'roots'})
+TREE_KEYS = frozenset({'name', *ATTRIBUTE_KEYS, 'groups', 'dirs', 'files'})
+FILE_KEYS = frozenset({'name', *ATTRIBUTE_KEYS, 'groups'})
 
 
 @dataclass(frozen=True, slots=True)
-class FileSpec:
+class Attributes:
+    loc: str = ''
+    pwd: str = ''
+    desc: str = ''
+    author: str = ''
+    groups: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class Node:
     path: str
-    loc: str | None
-    pwd: str | None
-    desc: str | None
-    author: str | None
-    groups: tuple[str, ...]
+    name: str | None
+    attributes: Attributes
 
 
 @dataclass(frozen=True, slots=True)
 class Source:
     users: tuple[str, ...]
     groups: dict[str, tuple[str, ...]]
-    files: dict[str, FileSpec]
+    files: dict[str, Attributes]
     token_file: Path
 
 
@@ -86,19 +94,18 @@ def table_of(value: object, where: str) -> dict[str, Any]:
     return value
 
 
+def table_array(value: object, where: str) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise SystemExit(f'{where} 须为表数组')
+    return [table_of(item, f'{where}[{index}]') for index, item in enumerate(value)]
+
+
 def string_tuple(value: object, where: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise SystemExit(f'{where} 须为字符串数组')
     return tuple(value)
-
-
-def optional_string(table: dict[str, Any], key: str, where: str) -> str | None:
-    value = table.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise SystemExit(f'{where} 的 {key} 须为字符串')
-    return value
 
 
 def check_keys(table: dict[str, Any], allowed: frozenset[str], where: str) -> None:
@@ -107,12 +114,147 @@ def check_keys(table: dict[str, Any], allowed: frozenset[str], where: str) -> No
         raise SystemExit(f'{where} 出现未知字段：{"、".join(unknown)}')
 
 
-def validate_virtual_path(path: str, where: str) -> None:
-    if not path.startswith('/') or path.endswith('/'):
-        raise SystemExit(f'{where} 须以 / 开头且不以 / 结尾：{path}')
-    for segment in path[1:].split('/'):
-        if not segment or segment != segment.strip():
-            raise SystemExit(f'{where} 的名称不能为空或首尾含空白：{path}')
+def bare_name(name: str) -> str:
+    dot = name.find('.', 1)
+    return name if dot < 0 else name[:dot]
+
+
+def expand(text: str, variables: Mapping[str, str], where: str) -> str:
+    parts: list[str] = []
+    index = 0
+    while index < len(text):
+        if text.startswith('$${', index):
+            parts.append('${')
+            index += 3
+        elif text.startswith('${', index):
+            end = text.find('}', index + 2)
+            if end < 0:
+                raise SystemExit(f'{where} 有未闭合的 ${{：{text}')
+            variable = text[index + 2 : end]
+            if variable not in variables:
+                raise SystemExit(f'{where} 引用未知变量：${{{variable}}}')
+            parts.append(variables[variable])
+            index = end + 1
+        else:
+            parts.append(text[index])
+            index += 1
+    return ''.join(parts)
+
+
+def resolve_attribute(
+    table: dict[str, Any],
+    key: str,
+    inherited: str,
+    variables: Mapping[str, str],
+    where: str,
+) -> str:
+    if key not in table:
+        return inherited
+    value = table[key]
+    if not isinstance(value, str):
+        raise SystemExit(f'{where} 的 {key} 须为字符串')
+    return expand(value, variables, f'{where} 的 {key}')
+
+
+def resolve_groups(
+    table: dict[str, Any],
+    inherited: tuple[str, ...],
+    groups: Mapping[str, tuple[str, ...]],
+    where: str,
+) -> tuple[str, ...]:
+    if 'groups' not in table:
+        return inherited
+    members = string_tuple(table['groups'], f'{where} 的 groups')
+    for member in members:
+        if member not in groups:
+            raise SystemExit(f'{where} 引用了未定义的分组：{member}')
+    return members
+
+
+def resolve_attributes(
+    table: dict[str, Any],
+    where: str,
+    inherited: Attributes,
+    variables: Mapping[str, str],
+    groups: Mapping[str, tuple[str, ...]],
+) -> Attributes:
+    return Attributes(
+        loc=resolve_attribute(table, 'loc', inherited.loc, variables, where),
+        pwd=resolve_attribute(table, 'pwd', inherited.pwd, variables, where),
+        desc=resolve_attribute(table, 'desc', inherited.desc, variables, where),
+        author=resolve_attribute(table, 'author', inherited.author, variables, where),
+        groups=resolve_groups(table, inherited.groups, groups, where),
+    )
+
+
+def child_variables(path: str, name: str, parent: Node) -> dict[str, str]:
+    variables = {
+        'path': path,
+        'name': name,
+        'bareName': bare_name(name),
+        'parent.path': parent.path,
+        'parent.loc': parent.attributes.loc,
+        'parent.pwd': parent.attributes.pwd,
+        'parent.desc': parent.attributes.desc,
+        'parent.author': parent.attributes.author,
+    }
+    if parent.name is not None:
+        variables['parent.name'] = parent.name
+        variables['parent.bareName'] = bare_name(parent.name)
+    return variables
+
+
+def make_node(
+    parent: Node,
+    table: dict[str, Any],
+    where: str,
+    groups: Mapping[str, tuple[str, ...]],
+    *,
+    directory: bool,
+) -> Node:
+    check_keys(table, TREE_KEYS if directory else FILE_KEYS, where)
+    name = table.get('name')
+    if not isinstance(name, str) or not name or '/' in name or name != name.strip():
+        raise SystemExit(f'{where} 的 name 须为非空、不含 / 且首尾没有空白的字符串')
+    path = f'{parent.path}{name}{"/" if directory else ""}'
+    variables = child_variables(path, name, parent)
+    attributes = resolve_attributes(table, where, parent.attributes, variables, groups)
+    return Node(path=path, name=name, attributes=attributes)
+
+
+def walk(
+    node: Node,
+    table: dict[str, Any],
+    where: str,
+    groups: Mapping[str, tuple[str, ...]],
+    files: dict[str, Attributes],
+) -> None:
+    for index, dir_table in enumerate(table_array(table.get('dirs'), f'{where} 的 dirs')):
+        child_where = f'{where} 的 dirs[{index}]'
+        child = make_node(node, dir_table, child_where, groups, directory=True)
+        walk(child, dir_table, child_where, groups, files)
+    for index, file_table in enumerate(table_array(table.get('files'), f'{where} 的 files')):
+        child_where = f'{where} 的 files[{index}]'
+        child = make_node(node, file_table, child_where, groups, directory=False)
+        if child.path in files:
+            raise SystemExit(f'{child_where} 的文件路径重复：{child.path}')
+        files[child.path] = child.attributes
+
+
+def collect_files(
+    tree: dict[str, Any],
+    index: int,
+    groups: Mapping[str, tuple[str, ...]],
+    files: dict[str, Attributes],
+) -> None:
+    where = f'roots[{index}]'
+    check_keys(tree, TREE_KEYS, where)
+    root = Node(
+        path='/',
+        name=None,
+        attributes=resolve_attributes(tree, where, Attributes(), {'path': '/'}, groups),
+    )
+    walk(root, tree, where, groups, files)
 
 
 def check_no_shadowing(paths: tuple[str, ...]) -> None:
@@ -130,7 +272,6 @@ def read_source(input_path: Path) -> Source:
     check_keys(raw, SOURCE_KEYS, str(input_path))
     user_tables = table_of(raw.get('user', {}), 'user')
     group_tables = table_of(raw.get('group', {}), 'group')
-    file_tables = table_of(raw.get('file', {}), 'file')
 
     users = tuple(user_tables)
     for name, value in user_tables.items():
@@ -148,24 +289,9 @@ def read_source(input_path: Path) -> Source:
                 raise SystemExit(f'{where} 引用了未定义的用户：{member}')
         groups[name] = members
 
-    files: dict[str, FileSpec] = {}
-    for path, value in file_tables.items():
-        where = f'file."{path}"'
-        table = table_of(value, where)
-        check_keys(table, FILE_KEYS, where)
-        validate_virtual_path(path, where)
-        members = string_tuple(table.get('groups', []), f'{where} 的 groups')
-        for member in members:
-            if member not in group_tables:
-                raise SystemExit(f'{where} 引用了未定义的分组：{member}')
-        files[path] = FileSpec(
-            path=path,
-            loc=optional_string(table, 'loc', where),
-            pwd=optional_string(table, 'pwd', where),
-            desc=optional_string(table, 'desc', where),
-            author=optional_string(table, 'author', where),
-            groups=members,
-        )
+    files: dict[str, Attributes] = {}
+    for index, tree in enumerate(table_array(raw.get('roots'), 'roots')):
+        collect_files(tree, index, groups, files)
     check_no_shadowing(tuple(files))
 
     token_file = raw.get('token_file', DEFAULT_TOKEN_FILE)
@@ -252,24 +378,24 @@ def convert(input_path: Path, web_data_dir: Path) -> None:
     file_keys = {path: secrets.token_bytes(KEY_BYTES) for path in source.files}
     shared: list[list[bytes]] = [[b'', b''] for _ in range(len(group_slots) + len(file_slots))]
 
-    for path, spec in source.files.items():
+    for path, attributes in source.files.items():
         nonce = secrets.token_bytes(NONCE_BYTES)
         fields = (
-            ('path', spec.path),
-            ('loc', spec.loc),
-            ('pwd', spec.pwd),
-            ('desc', spec.desc),
-            ('author', spec.author),
+            ('path', path),
+            ('loc', attributes.loc),
+            ('pwd', attributes.pwd),
+            ('desc', attributes.desc),
+            ('author', attributes.author),
         )
-        payload = {key: value for key, value in fields if value is not None}
+        payload = {key: value for key, value in fields if value}
         shared[file_slots[path]] = [nonce, encrypt(file_keys[path], nonce, payload)]
 
     for name in source.groups:
         nonce = secrets.token_bytes(NONCE_BYTES)
         payload = [
             [file_slots[path], file_keys[path]]
-            for path, spec in source.files.items()
-            if name in spec.groups
+            for path, attributes in source.files.items()
+            if name in attributes.groups
         ]
         shared[group_slots[name]] = [nonce, encrypt(group_keys[name], nonce, payload)]
 

@@ -7,7 +7,7 @@
     - 命令行工具：`cli.py`
 - 技术选型：
     - 前端：原生 JavaScript + MessagePack 库（UMD）
-    - 命令行工具：Python 3.11+ 及其标准库（argparse、tomllib、http.server） + pycryptodome + msgpack
+    - 命令行工具：Python 3.15+ 及其标准库（argparse、tomllib、http.server） + pycryptodome + msgpack；tomllib 从 3.15 起支持源数据使用的 TOML 1.1.0
 
 ## 安全与加密机制
 ### 加密算法参数
@@ -147,14 +147,88 @@ cli.py web [-b <ADDRESS>] [-p <PORT>] [-d <WEB_DATA_DIR>]
     - `token_file`（可选，指向 Token 清单文件；相对路径以本文件所在目录为基准，默认 `token.toml`）
     - `[user."<userName>"]`（空表）
     - `[group."<groupName>"]` + `users = ["<userName>"]`
-    - `[file."<virtualFilePath>"]` + `loc`, `pwd`, `desc`, `author`, `groups = ["<groupName>"]`
+    - `[[roots]]`：路径树的数组，每个元素是一棵独立树；可写多个，最终按文件路径合并成一棵
+        - `name`：可选，写了会被忽略，不参与路径和变量
+        - `loc`、`pwd`、`desc`、`author`、`groups`：可选属性，是这棵树的默认值，只沿这棵树向下继承
+        - `dirs`：顶层目录节点的数组（可选，默认为空），目录节点含 `name`、上述可选属性和自己的 `dirs`/`files`
+        - `files`：顶层文件节点的数组（可选，默认为空），文件节点含 `name` 和上述可选属性
+- 虚拟路径：
+    - 每棵树的根节点是 `/`
+    - 子节点的路径为父节点路径 + `<name>`，目录再补 `/`
+    - 节点名称是单个路径段，不能含 `/`
+    - 多棵树按文件路径合并，目录由文件路径派生，同名目录自然合并
+    - 没有子孙文件的目录不出现
 - 约束：
     - group 引用的 user 必须已定义
-    - file 引用的 group 必须已定义
-    - virtualFilePath 遵守虚拟路径规范
+    - 目录节点和文件节点引用的 group 必须已定义
+    - 合并后同一路径不能有两个文件
+    - 合并后的虚拟路径遵守“虚拟路径规范”
+
+#### 属性继承与变量
+- 继承：每棵树单独解析。节点属性优先取自己声明的值，没有声明时取同一棵树里父节点的同名属性；祖先链上都没有声明时取空值，字符串属性为空字符串，`groups` 为空数组。空字符串和空数组是声明值，会截断继承。
+- 变量：`loc`、`pwd`、`desc`、`author` 的值可以包含变量。每棵树自顶向下解析，每个节点先解析自己声明的字段，再处理子节点；子节点继承父节点解析后的值，变量展开使用解析后的有效值。
+- 可用变量：
+    - `path`：节点的完整虚拟路径，目录以 `/` 结尾，文件不以 `/` 结尾
+    - `name`：节点自己的路径段
+    - `bareName`：`name` 去掉第一个不在首位的 `.` 及其后内容；没有这样的 `.` 时等于 `name`。例如 `a.tar.gz` 得 `a`，`b.exe` 得 `b`，`.env` 得 `.env`
+    - `parent.path`、`parent.name`、`parent.bareName`、`parent.loc`、`parent.pwd`、`parent.desc`、`parent.author`：同一棵树里的父节点解析后的对应值
+    - 每棵树的根节点没有父节点，`name` 和 `bareName` 也不可用，根元素的属性引用 `parent.*`、`name`、`bareName` 时报错；顶层节点的属性引用 `parent.name`、`parent.bareName` 时报错
+- 写法：`${变量名}`；字面 `${` 写成 `$${`；未知变量和未闭合的 `${` 报错
+- 多棵树解析完成后再按文件路径合并，合并不改变已经解析出的属性值；目录只作为文件路径的前缀，不进入解密后的结构，所以合并后的目录没有属性
+- 空值在解密后的结构中省略
+
+示例一：继承与变量
+
+```toml
+[user.alice]
+[group.ops]
+users = ["alice"]
+
+[[roots]]
+pwd = 'shared'
+dirs = [
+    { name = '公司', dirs = [
+        { name = '运维', loc = 'https://intranet/运维/', files = [
+            # loc 展开为 'https://intranet/运维/root'
+            { name = 'root', loc = '${parent.loc}${name}', groups = ["ops"] },
+        ] },
+    ] },
+]
+```
+
+示例二：多棵树合并
+
+```toml
+# prod
+[[roots]]
+author = 'A'
+dirs = [
+    { name = 'd', files = [
+        { name = 'f1.txt' },
+    ] },
+]
+
+# demo
+[[roots]]
+author = 'B'
+dirs = [
+    { name = 'd', files = [
+        { name = 'f2.txt' },
+    ] },
+]
+```
+
+合并后的树：
+
+```
+/
+    d/
+        f1.txt : author="A"
+        f2.txt : author="B"
+```
 
 #### 处理步骤
-1. 读取并校验 TOML，构建依赖关系图
+1. 读取并校验 TOML，逐棵解析路径树，应用属性继承与变量展开，按文件路径合并，构建依赖关系图
 2. 为每个 user 分配盐和 Nonce，为每个 group 和 file 分配唯一 ID（即 `data` 数组下标）、Nonce 和密钥
 3. 读取/生成 Token 清单（`token.toml`）：
     - 若用户已有 Token 则复用，否则生成新 Token 并写入清单

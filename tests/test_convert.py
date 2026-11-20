@@ -35,20 +35,118 @@ users = ["alice", "bob"]
 [group.ops]
 users = ["alice"]
 
-[file."/docs/a.txt"]
-loc = 'https://example.org/a'
-pwd = 'pw-a'
-desc = "第一行\\n\\n第二行"
-author = 'alice'
-groups = ["readers"]
-
-[file."/docs/b.txt"]
-groups = ["readers", "ops"]
-
-[file."/secret/c.txt"]
-pwd = 'pw-c'
-groups = ["ops"]
+[[roots]]
+dirs = [
+    { name = 'docs', files = [
+        {
+            name = 'a.txt',
+            loc = 'https://example.org/a',
+            pwd = 'pw-a',
+            desc = "第一行\\n\\n第二行",
+            author = 'alice',
+            groups = ["readers"],
+        },
+        { name = 'b.txt', groups = ["readers", "ops"] },
+    ] },
+    { name = 'secret', files = [
+        { name = 'c.txt', pwd = 'pw-c', groups = ["ops"] },
+    ] },
+]
 '''
+
+INHERITANCE = '''\
+[user.alice]
+[group.g]
+users = ["alice"]
+
+[[roots]]
+loc = 'https://example.org'
+pwd = 'shared'
+groups = ["g"]
+dirs = [
+    { name = 'd', files = [
+        { name = 'x.txt' },
+        { name = 'y.txt', pwd = '', author = 'bob' },
+    ] },
+]
+'''
+
+VARIABLES = '''\
+[user.alice]
+[group.g]
+users = ["alice"]
+
+[[roots]]
+loc = 'https://example.org/'
+dirs = [
+    { name = 'd', loc = '${parent.loc}${name}/', files = [
+        {
+            name = 'a.tar.gz',
+            loc = '${path}',
+            pwd = '${bareName}-${parent.name}',
+            desc = '$${name} 属于 ${parent.bareName}',
+            groups = ["g"],
+        },
+    ] },
+]
+'''
+
+MERGE = '''\
+[user.alice]
+[group.g]
+users = ["alice"]
+
+[[roots]]
+author = 'A'
+groups = ["g"]
+dirs = [{ name = 'd', files = [{ name = 'f1.txt' }] }]
+
+[[roots]]
+author = 'B'
+groups = ["g"]
+dirs = [{ name = 'd', files = [{ name = 'f2.txt' }] }]
+'''
+
+NAME_IGNORED = '''\
+[user.alice]
+[group.g]
+users = ["alice"]
+
+[[roots]]
+name = 'prod'
+groups = ["g"]
+files = [{ name = 'a.txt' }]
+'''
+
+EMPTY_ATTRIBUTES = '''\
+[user.alice]
+[group.g]
+users = ["alice"]
+
+[[roots]]
+groups = ["g"]
+files = [{ name = 'a.txt', loc = '', pwd = '', desc = '', author = '' }]
+'''
+
+EMPTY_DIRECTORIES = '''\
+[user.alice]
+[group.g]
+users = ["alice"]
+
+[[roots]]
+groups = ["g"]
+dirs = [{ name = 'empty' }]
+'''
+
+CONFLICTING_PATH = (
+    '[user.alice]\n[[roots]]\nfiles = [{ name = "a" }]\n'
+    'dirs = [{ name = "a", files = [{ name = "b" }] }]\n'
+)
+
+DUPLICATE_FILE = (
+    '[user.alice]\n[[roots]]\nfiles = [{ name = "a.txt" }]\n'
+    '[[roots]]\nfiles = [{ name = "a.txt" }]\n'
+)
 
 TOKENS = f'"alice" = "{ALICE}"\n"bob" = "{BOB}"\n'
 
@@ -84,6 +182,16 @@ def read_files(web_data_dir: Path, token: str) -> dict[str, dict[str, Any]]:
             payload = unseal(file_key, nonce, blob)
             files[payload['path']] = payload
     return files
+
+
+def read_tokens(workspace: Path) -> dict[str, Any]:
+    return tomllib.loads((workspace / 'token.toml').read_text(encoding='utf-8'))
+
+
+def convert(workspace: Path, source: str) -> dict[str, dict[str, Any]]:
+    (workspace / 'data.toml').write_text(source, encoding='utf-8')
+    cli.main(['data', '-c'])
+    return read_files(workspace, ALICE)
 
 
 @pytest.fixture
@@ -132,7 +240,7 @@ def test_missing_tokens_are_generated_uniquely(workspace: Path) -> None:
 
     cli.main(['data', '-c'])
 
-    tokens = tomllib.loads((workspace / 'token.toml').read_text(encoding='utf-8'))
+    tokens = read_tokens(workspace)
     assert set(tokens) == {'alice', 'bob'}
     assert tokens['alice'] != tokens['bob']
     assert set(read_files(workspace, tokens['bob'])) == {'/docs/a.txt', '/docs/b.txt'}
@@ -147,8 +255,7 @@ def test_undefined_token_owner_is_warned_and_kept(
     cli.main(['data', '-c'])
 
     assert 'ghost' in capsys.readouterr().err
-    tokens = tomllib.loads((workspace / 'token.toml').read_text(encoding='utf-8'))
-    assert tokens['ghost'] == 'ghost-token'
+    assert read_tokens(workspace)['ghost'] == 'ghost-token'
 
 
 def test_stale_user_files_are_removed(workspace: Path) -> None:
@@ -163,34 +270,85 @@ def test_stale_user_files_are_removed(workspace: Path) -> None:
     )
 
 
+def test_attributes_inherit_downward_and_empty_values_truncate(workspace: Path) -> None:
+    files = convert(workspace, INHERITANCE)
+
+    assert files['/d/x.txt'] == {
+        'path': '/d/x.txt',
+        'loc': 'https://example.org',
+        'pwd': 'shared',
+    }
+    assert files['/d/y.txt'] == {
+        'path': '/d/y.txt',
+        'loc': 'https://example.org',
+        'author': 'bob',
+    }
+
+
+def test_variables_use_resolved_parent_values(workspace: Path) -> None:
+    files = convert(workspace, VARIABLES)
+
+    assert files['/d/a.tar.gz'] == {
+        'path': '/d/a.tar.gz',
+        'loc': '/d/a.tar.gz',
+        'pwd': 'a-d',
+        'desc': '${name} 属于 d',
+    }
+
+
+def test_roots_merge_by_file_path_with_their_own_attributes(workspace: Path) -> None:
+    files = convert(workspace, MERGE)
+
+    assert files == {
+        '/d/f1.txt': {'path': '/d/f1.txt', 'author': 'A'},
+        '/d/f2.txt': {'path': '/d/f2.txt', 'author': 'B'},
+    }
+
+
+def test_root_name_is_ignored(workspace: Path) -> None:
+    assert set(convert(workspace, NAME_IGNORED)) == {'/a.txt'}
+
+
+def test_empty_declarations_are_omitted(workspace: Path) -> None:
+    assert convert(workspace, EMPTY_ATTRIBUTES) == {'/a.txt': {'path': '/a.txt'}}
+
+
+def test_directories_without_files_do_not_appear(workspace: Path) -> None:
+    assert convert(workspace, EMPTY_DIRECTORIES) == {}
+
+
 @pytest.mark.parametrize(
     ('body', 'message'),
     [
+        ('[users.alice]\n', '未知字段：users'),
+        ('[user]\nalice = 1\n', '须为表'),
+        ('[user.alice]\n[group.g]\nusers = "alice"\n', '须为字符串数组'),
+        ('[user.alice]\n[group.g]\nusers = ["ghost"]\n', '未定义的用户：ghost'),
         (
-            '[user.alice]\n[group.g]\nusers = ["ghost"]\n[file."/a.txt"]\ngroups = ["g"]\n',
-            '未定义的用户：ghost',
-        ),
-        (
-            '[user.alice]\n[group.g]\nusers = ["alice"]\n[file."/a.txt"]\ngroups = ["ghost"]\n',
+            '[user.alice]\n[[roots]]\nfiles = [{ name = "a.txt", groups = ["ghost"] }]\n',
             '未定义的分组：ghost',
         ),
-        ('[users.alice]\n', '未知字段：users'),
-        ('[user.alice]\n[group.g]\nusers = "alice"\n', '须为字符串数组'),
-        ('[user]\nalice = 1\n', '须为表'),
-        ('[user.alice]\n[file."a.txt"]\n', '不以 / 结尾：a.txt'),
-        ('[user.alice]\n[file."/a/"]\n', '不以 / 结尾：/a/'),
-        ('[user.alice]\n[file."//a"]\n', '首尾含空白：//a'),
-        ('[user.alice]\n[file."/ a"]\n', '首尾含空白：/ a'),
-        ('[user.alice]\n[file."/a.txt"]\nlco = "x"\n', '未知字段：lco'),
-        ('[user.alice]\n[file."/a.txt"]\nloc = 1\n', 'loc 须为字符串'),
-        ('[user.alice]\n[file."/a"]\n[file."/a/b"]\n', '既是文件又是目录'),
+        ('roots = 1\n', '须为表数组'),
+        ('[[roots]]\nx = 1\n', '未知字段：x'),
+        ('[[roots]]\nfiles = [{ name = "a.txt", lco = "x" }]\n', '未知字段：lco'),
+        ('[[roots]]\ndirs = [{ name = "d", x = 1 }]\n', '未知字段：x'),
+        ('[[roots]]\nfiles = [{ name = "a.txt", loc = 1 }]\n', 'loc 须为字符串'),
+        ('[[roots]]\nfiles = [{}]\n', 'name 须为非空'),
+        ('[[roots]]\nfiles = [{ name = "" }]\n', 'name 须为非空'),
+        ('[[roots]]\nfiles = [{ name = "a/b" }]\n', 'name 须为非空'),
+        ('[[roots]]\nfiles = [{ name = " a" }]\n', 'name 须为非空'),
+        ('[[roots]]\nfiles = [{ name = "a", loc = "${nope}" }]\n', '未知变量：${nope}'),
+        ('[[roots]]\nfiles = [{ name = "a", loc = "${name" }]\n', '未闭合的 ${'),
+        ('[[roots]]\nloc = "${name}"\n', '未知变量：${name}'),
+        (
+            '[[roots]]\ndirs = [{ name = "d", loc = "${parent.name}" }]\n',
+            '未知变量：${parent.name}',
+        ),
+        (CONFLICTING_PATH, '既是文件又是目录'),
+        (DUPLICATE_FILE, '文件路径重复：/a.txt'),
     ],
 )
-def test_invalid_source_is_rejected(
-    workspace: Path,
-    body: str,
-    message: str,
-) -> None:
+def test_invalid_source_is_rejected(workspace: Path, body: str, message: str) -> None:
     (workspace / 'data.toml').write_text(body, encoding='utf-8')
 
     with pytest.raises(SystemExit) as exit_code:

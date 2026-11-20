@@ -3,7 +3,7 @@ name = 'localpwdquery'
 version = '0.1.0'
 description = '本地密码查询系统的数据准备工具、本地 HTTP 服务器与前端页面'
 readme = 'README.md'
-requires-python = '>=3.11'
+requires-python = '>=3.15'
 dependencies = [
     'msgpack>=1.2.2',
     'pycryptodome>=3.23.0',
@@ -26,7 +26,7 @@ addopts = '-q'
 
 [tool.ruff]
 line-length = 100
-target-version = 'py311'
+target-version = 'py315'
 
 [tool.ruff.lint]
 select = ['ALL', 'ANN401']
@@ -64,7 +64,7 @@ quote-style = 'preserve'
 [tool.pyright]
 include = ['.']
 typeCheckingMode = 'strict'
-pythonVersion = '3.11'
+pythonVersion = '3.15'
 # msgpack 不带 py.typed，pycryptodome 的桩里有一处未参数化的 Dict，
 # 未定型类型的报告只可能来自这两个依赖，全树关闭。
 reportMissingTypeStubs = false

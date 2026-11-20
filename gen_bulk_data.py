@@ -1,4 +1,4 @@
-'''往源数据文件追加压测用的批量条目，供页面在大数据量下试用。
+'''往数据文件追加压测用的批量条目，供页面在大数据量下试用。
 
 条目放在 --root 下，按 --dirs 与 --depth 铺成目录树，重跑脚本会整段替换上一次生成的内容。
 '''
@@ -7,7 +7,7 @@ import argparse
 import json
 
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_COUNT = 3200
@@ -25,6 +25,13 @@ class Shape:
     group: str
     dirs: int
     depth: int
+
+
+@dataclass(slots=True)
+class Dir:
+    name: str
+    dirs: dict[str, Dir] = field(default_factory=dict)
+    entries: list[int] = field(default_factory=list)
 
 
 def positive(text: str) -> int:
@@ -87,10 +94,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def leaf_paths(shape: Shape) -> list[str]:
-    paths = [shape.root]
+def leaf_segments(shape: Shape) -> list[list[str]]:
+    paths = [[segment for segment in shape.root.split('/') if segment]]
     for _ in range(shape.depth):
-        paths = [f'{path}/分组-{index:04d}' for path in paths for index in range(1, shape.dirs + 1)]
+        paths = [
+            [*path, f'分组-{index:04d}'] for path in paths for index in range(1, shape.dirs + 1)
+        ]
     return paths
 
 
@@ -99,27 +108,44 @@ def block_sizes(total: int, parts: int) -> list[int]:
     return [base + (1 if index < extra else 0) for index in range(parts)]
 
 
-def entry(index: int, path: str, group: str) -> str:
+def build_tree(leaves: Sequence[Sequence[str]], sizes: Sequence[int]) -> Dir:
+    root = Dir(name='')
+    index = 0
+    for segments, size in zip(leaves, sizes, strict=True):
+        node = root
+        for segment in segments:
+            node = node.dirs.setdefault(segment, Dir(name=segment))
+        node.entries.extend(range(index + 1, index + size + 1))
+        index += size
+    return root
+
+
+def toml_string(value: str) -> str:
+    '''按 TOML 基本字符串转义，JSON 的转义规则是它的真子集。'''
+    return json.dumps(value, ensure_ascii=False)
+
+
+def file_fields(index: int, group: str) -> Iterator[str]:
     name = f'{index:04d}'
     desc = f'压测条目 {index}'
     if index % 10 == 0:
         desc += f'\n第二行：条目 {index} 的补充说明'
-    return (
-        f'\n[file."{path}/条目-{name}.txt"]\n'
-        f"loc = 'https://bulk.example.org/{name}'\n"
-        f"pwd = 'bulk-pwd-{name}'\n"
-        f'desc = {json.dumps(desc, ensure_ascii=False)}\n'
-        f"author = '{AUTHORS[index % len(AUTHORS)]}'\n"
-        f'groups = ["{group}"]\n'
-    )
+    yield f'name = {toml_string(f"条目-{name}.txt")}'
+    yield f"loc = 'https://bulk.example.org/{name}'"
+    yield f"pwd = 'bulk-pwd-{name}'"
+    yield f'desc = {toml_string(desc)}'
+    yield f"author = '{AUTHORS[index % len(AUTHORS)]}'"
+    yield f'groups = [{toml_string(group)}]'
 
 
-def entries(shape: Shape, paths: Sequence[str]) -> Iterator[str]:
-    index = 0
-    for path, size in zip(paths, block_sizes(shape.count, len(paths)), strict=True):
-        for _ in range(size):
-            index += 1
-            yield entry(index, path, shape.group)
+def emit(node: Dir, table: str, group: str) -> Iterator[str]:
+    for child in node.dirs.values():
+        yield f'[[{table}.dirs]]'
+        yield f'name = {toml_string(child.name)}'
+        yield from emit(child, f'{table}.dirs', group)
+    for index in node.entries:
+        yield f'[[{table}.files]]'
+        yield from file_fields(index, group)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -128,15 +154,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     shape = Shape(
         root=args.root, count=args.count, group=args.group, dirs=args.dirs, depth=args.depth
     )
-    paths = leaf_paths(shape)
+    leaves = leaf_segments(shape)
     summary = (
         f'{MARKER}（count={shape.count}, dirs={shape.dirs}, depth={shape.depth},'
         f' root={shape.root}, group={shape.group}）{MARKER_TAIL}'
     )
     base = orig_file.read_text(encoding='utf-8').split(MARKER, 1)[0].rstrip()
-    block = ''.join(entries(shape, paths))
-    orig_file.write_text(f'{base}\n\n{summary}\n{block}', encoding='utf-8')
-    print(f'{shape.count} 条压测条目写入 {orig_file}，分布在 {len(paths)} 个目录')
+    tree = build_tree(leaves, block_sizes(shape.count, len(leaves)))
+    block = '\n'.join(['[[roots]]', *emit(tree, 'roots', shape.group)])
+    orig_file.write_text(f'{base}\n\n{summary}\n{block}\n', encoding='utf-8')
+    print(f'{shape.count} 条压测条目写入 {orig_file}，分布在 {len(leaves)} 个目录')
 
 
 if __name__ == '__main__':
