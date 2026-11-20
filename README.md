@@ -18,8 +18,8 @@
 
 ```sh
 uv sync
-uv run cli.py data -u -c     # 下载 msgpack，把 ./data.toml 转成 ./data/
-uv run cli.py web            # 默认 http://127.0.0.1:8000/
+uv run cli.py data -u -c
+uv run cli.py web
 ```
 
 `data -c` 首次运行会生成 Token 并写进 `token.toml`，用其中的 Token 在页面上登录。Token 与密码生成都依赖 WebCrypto，页面需要通过 `localhost` 或 HTTPS 打开。
@@ -31,7 +31,7 @@ uv run cli.py web            # 默认 http://127.0.0.1:8000/
 ```sh
 uv run gen_bulk_data.py data.toml --count 10000 --dirs 50 --depth 1   # 10000 条，分到 50 个目录
 uv run gen_bulk_data.py data.toml --count 5000 --dirs 10 --depth 2    # 两级目录共 100 个，每个 50 条
-uv run cli.py data -c                                       # 生成完重新转换一次数据
+uv run cli.py data -c
 ```
 
 不带参数时是 3200 条直接放在 `/压测/` 下。
