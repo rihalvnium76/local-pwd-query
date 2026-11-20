@@ -4,8 +4,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# cli.py 生成的前端数据，以及只有管理员持有的明文源数据
+# cli.py 按默认参数生成的前端数据与明文源数据
 /lib/
 /data/
 /data.toml
 /token.toml
+# 本地存放源数据的密钥目录
+/.secrets/

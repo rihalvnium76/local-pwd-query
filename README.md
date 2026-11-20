@@ -9,29 +9,29 @@
 - `gen_bulk_data.py`：往源数据文件追加一段压测条目，供页面上试用大数据量
 - `pyproject.toml`：依赖、ruff、pyright、pytest 的配置
 - `tests/`：数据转换、web 路由与页面交互的检查
-- `data.toml`、`token.toml`：管理员持有的明文源数据与 Token 清单
-- `lib/`、`data/`：`cli.py` 生成的前端数据
 
-后四项由 `.gitignore` 排除，仓库里只有工具与页面源码。命令行工具要求 Python 3.11+，最低版本取所需依赖（包括标准库）允许的最低值。遇到这些情况再抬高：某个依赖的必要新版本不再支持当前下限、决定使用新版本语法或惯用法、当前下限停止接收安全修复（达到 EOL，或某个修复只进入更高版本）。
+数据目录存放只有管理员持有的明文源数据 `data.toml` 与 Token 清单 `token.toml`，以及 `cli.py` 生成的 `lib/`、`data/`；该目录不进仓库。
+
+命令行工具要求 Python 3.11+，最低版本取所需依赖（包括标准库）允许的最低值。遇到这些情况再抬高：某个依赖的必要新版本不再支持当前下限、决定使用新版本语法或惯用法、当前下限停止接收安全修复（达到 EOL，或某个修复只进入更高版本）。
 
 ## 本地运行
 
 ```sh
 uv sync
-uv run cli.py data -u -c
-uv run cli.py web
+uv run cli.py data -u -c 数据目录/data.toml -d 数据目录
+uv run cli.py web -d 数据目录
 ```
 
-`data -c` 首次运行会生成 Token 并写进 `token.toml`，用其中的 Token 在页面上登录。Token 与密码生成都依赖 WebCrypto，页面需要通过 `localhost` 或 HTTPS 打开。
+`web -d 数据目录` 先在数据目录里找 `lib/`、`data/`，找不到再回退到当前工作目录，所以 `index.html` 仍由仓库根目录提供。`data -c` 首次运行会生成 Token 并写进 `数据目录/token.toml`，用其中的 Token 在页面上登录。Token 与密码生成都依赖 WebCrypto，页面需要通过 `localhost` 或 HTTPS 打开。
 
 ## 大数据量试用
 
 `gen_bulk_data.py` 在源数据文件末尾追加一段压测条目，上一次生成的整段会被替换掉。条目总数、虚拟根目录、所属分组、目录形状都由命令行参数控制，完整参数见 `uv run gen_bulk_data.py --help`：
 
 ```sh
-uv run gen_bulk_data.py data.toml --count 10000 --dirs 50 --depth 1   # 10000 条，分到 50 个目录
-uv run gen_bulk_data.py data.toml --count 5000 --dirs 10 --depth 2    # 两级目录共 100 个，每个 50 条
-uv run cli.py data -c
+uv run gen_bulk_data.py 数据目录/data.toml --count 10000 --dirs 50 --depth 1   # 10000 条，分到 50 个目录
+uv run gen_bulk_data.py 数据目录/data.toml --count 5000 --dirs 10 --depth 2    # 两级目录共 100 个，每个 50 条
+uv run cli.py data -c 数据目录/data.toml -d 数据目录
 ```
 
 不带参数时是 3200 条直接放在 `/压测/` 下。
@@ -41,7 +41,7 @@ uv run cli.py data -c
 发布目录里的 `index.html`、`lib/`、`data/` 由浏览器按相对路径加载，必须同处一个目录。发布时把它们生成到站点目录再提交：
 
 ```sh
-uv run cli.py data -u -c -d 站点目录
+uv run cli.py data -u -c 数据目录/data.toml -d 站点目录
 ```
 
 ## 验证
