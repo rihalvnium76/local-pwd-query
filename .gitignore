@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+AGENTS.local.md
 
 # cli.py 按默认参数生成的前端数据与明文源数据
 /lib/
